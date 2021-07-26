@@ -20,8 +20,9 @@ enum_dispatch = "0.3.6"
 fern = { version = "0.6.0", features = ["colored"] }
 hex = "0.4.3"
 log = "0.4.14"
-once_cell = "1.9.0"
-prost = "0.9.0"
+once_cell = "1.7.2"
+prost = "0.8.0"
+openssl = "0.10.35"
 rand = "0.8.3"
 rug = { version = "1.14.0", features = [
     "integer",
@@ -39,10 +40,12 @@ prost-build = "0.9.0"
 
 [dev-dependencies]
 enclose = "1.1.8"
-itertools = "0.10.3"
-mockall = "0.11.0"
-paste = "1.0.6"
-serde = { version = "1.0.131", features = ["derive"] }
+itertools = "0.10.1"
+mockall = "0.10"
+paste = "1.0.5"
+protobuf = "2.24.1"
+reqwest = { version = "0.11.4", features = ["blocking"] }
+serde = { version = "1.0.126", features = ["derive"] }
 
 [features]
 default = ["vendored", "mock"]

@@ -78,9 +78,7 @@ impl<'tx> HandlerContext<'tx> {
         // skipcq: RS-D1000
         // TODO: transitioning
         let signer = request.get_header().get_signer_public_key();
-        let compressed = utils::compress(signer)?;
-        let hash = sha512_id(compressed.as_bytes());
-        Ok(SigHash(hash))
+        utils::sighash_from_pubkey(signer)
     }
 
     pub fn guid(&self, request: &TpProcessRequest) -> Guid {
