@@ -1326,7 +1326,7 @@ fn send_funds_success() {
         ],
     );
 
-    command.execute(&request, &tx_ctx, &mut ctx).unwrap();
+    execute_success(command, &request, &tx_ctx, &mut ctx);
 }
 
 #[test]
@@ -2897,7 +2897,7 @@ fn housekeeping_reward_in_chain() {
     );
 
     // run housekeeping
-    command.execute(&request, &tx_ctx, &mut ctx).unwrap();
+    execute_success(command, &request, &tx_ctx, &mut ctx);
 }
 
 #[test]
@@ -3001,7 +3001,7 @@ fn housekeeping_reward_fork() {
     );
 
     // run housekeeping
-    command.execute(&request, &tx_ctx, &mut ctx).unwrap();
+    execute_success(command, &request, &tx_ctx, &mut ctx);
 }
 
 #[test]
@@ -3035,7 +3035,7 @@ fn housekeeping_not_enough_confirmations() {
     let mut ctx = MockHandlerContext::default();
 
     // execute housekeeping
-    command.execute(&request, &tx_ctx, &mut ctx).unwrap();
+    execute_success(command, &request, &tx_ctx, &mut ctx);
 }
 
 #[test]
@@ -3072,5 +3072,5 @@ fn housekeeping_within_block_reward_count() {
     let mut ctx = MockHandlerContext::default();
 
     // execute housekeeping
-    command.execute(&request, &tx_ctx, &mut ctx).unwrap();
+    execute_success(command, &request, &tx_ctx, &mut ctx);
 }
