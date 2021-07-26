@@ -15,43 +15,16 @@ pub mod protos {
 }
 
 use anyhow::Result;
-use fern::FormatCallback;
-use fern::{colors::Color, Dispatch};
-use log::LevelFilter;
-use log::Record;
-use std::fmt::Arguments;
-use std::io::stdout;
-use tracing_subscriber::prelude::__tracing_subscriber_SubscriberExt;
-use tracing_subscriber::util::SubscriberInitExt;
-
 use clap::{clap_app, crate_authors, crate_description, crate_version};
-use fern::colors::ColoredLevelConfig;
+use log::LevelFilter;
 use sawtooth_sdk::processor::TransactionProcessor;
 use tracing::info;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 use tracing_tree::HierarchicalLayer;
 
 const DEFAULT_ENDPOINT: &str = "tcp://localhost:4004";
 const DEFAULT_GATEWAY: &str = "tcp://localhost:55555";
-
-const TIME_FMT: &str = "%Y-%m-%d %H:%M:%S.%3f";
-
-fn fmt_log(out: FormatCallback, message: &Arguments, record: &Record) {
-    let module: &str = record
-        .module_path_static()
-        .or_else(|| record.module_path())
-        .unwrap_or("???");
-    let colors = ColoredLevelConfig::new()
-        .info(Color::Green)
-        .debug(Color::Blue)
-        .trace(Color::BrightMagenta);
-    out.finish(format_args!(
-        "[{} {:<5} {}] {}",
-        chrono::Utc::now().format(TIME_FMT),
-        colors.color(record.level()),
-        module,
-        message
-    ))
-}
 
 fn setup_logs(verbose_count: u64) -> Result<()> {
     let level = match verbose_count {
@@ -60,6 +33,10 @@ fn setup_logs(verbose_count: u64) -> Result<()> {
         2 => LevelFilter::Debug,
         _ => LevelFilter::Trace,
     };
+
+    if std::env::var("RUST_LOG").is_err() {
+        std::env::set_var("RUST_LOG", level.as_str().to_lowercase())
+    }
 
     // tracing_subscriber::FmtSubscriber::default().init();
     tracing_subscriber::registry()

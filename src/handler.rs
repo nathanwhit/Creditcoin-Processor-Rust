@@ -2013,12 +2013,10 @@ impl CCTransactionHandler {
 }
 
 impl TransactionHandler for CCTransactionHandler {
-    #[tracing::instrument]
     fn family_name(&self) -> String {
         NAMESPACE.into()
     }
 
-    #[tracing::instrument]
     fn family_versions(&self) -> Vec<String> {
         vec![
             "1.0".into(),
@@ -2032,7 +2030,6 @@ impl TransactionHandler for CCTransactionHandler {
         ]
     }
 
-    #[tracing::instrument]
     fn namespaces(&self) -> Vec<String> {
         vec![NAMESPACE_PREFIX.clone()]
     }

@@ -221,26 +221,27 @@ pub mod mocked {
     use super::*;
     mockall::mock! {
         pub HandlerContext {
-            #[tracing::instrument]
             pub fn create(
                 gateway_context: zmq::Context,
                 gateway_endpoint: String,
                 tx_ctx: &dyn TransactionContext,
             ) -> TxnResult<Self>;
 
-            #[tracing::instrument]
             pub fn tip(&self) -> u64;
 
-            #[tracing::instrument]
             pub fn sighash(&self, request: &TpProcessRequest) -> TxnResult<SigHash>;
-            #[tracing::instrument]
+
             pub fn guid(&self, request: &TpProcessRequest) -> Guid;
 
-            #[tracing::instrument]
             pub fn get_setting(&self, key: &str) -> TxnResult<Option<String>>;
 
-            #[tracing::instrument]
             pub fn verify(&mut self, gateway_command: &str) -> TxnResult<()>;
+        }
+    }
+
+    impl fmt::Debug for MockHandlerContext {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            f.debug_struct("MockHandlerContext").finish_non_exhaustive()
         }
     }
 }
