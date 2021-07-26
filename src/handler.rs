@@ -29,6 +29,7 @@ use sawtooth_sdk::{
     processor::handler::{ApplyError, TransactionContext, TransactionHandler},
 };
 
+use core::fmt;
 use std::{convert::TryFrom, default::Default, ops::Deref};
 use types::CCApplyError::InvalidTransaction;
 use types::*;
@@ -174,6 +175,7 @@ pub struct Housekeeping {
 impl TryFrom<Value> for CCCommand {
     type Error = anyhow::Error;
 
+    #[tracing::instrument]
     fn try_from(value: Value) -> TxnResult<Self, Self::Error> {
         if let Value::Map(map) = value {
             let verb = get_string(&map, "v", "verb")?;
@@ -356,9 +358,10 @@ impl TryFrom<Value> for CCCommand {
     }
 }
 
-fn charge(txn_ctx: &dyn TransactionContext, sighash: &SigHash) -> TxnResult<(WalletId, Wallet)> {
+#[tracing::instrument(skip(tx_ctx))]
+fn charge(tx_ctx: &dyn TransactionContext, sighash: &SigHash) -> TxnResult<(WalletId, Wallet)> {
     let wallet_id = WalletId::from(sighash);
-    let state_data = get_state_data(txn_ctx, &wallet_id).context("Failed to get wallet data")?;
+    let state_data = get_state_data(tx_ctx, &wallet_id).context("Failed to get wallet data")?;
     let mut wallet = Wallet::try_parse(&state_data)
         .context(format!("The wallet for {:?} is invalid", sighash))?;
     let balance = Integer::try_parse(&wallet.amount)
@@ -387,6 +390,7 @@ trait CCTransaction: Sized {
 }
 
 impl CCTransaction for SendFunds {
+    #[tracing::instrument(skip(tx_ctx, request))]
     fn execute(
         self,
         request: &TpProcessRequest,
@@ -455,6 +459,7 @@ impl CCTransaction for SendFunds {
 }
 
 impl CCTransaction for RegisterAddress {
+    #[tracing::instrument(skip(tx_ctx, request))]
     fn execute(
         self,
         request: &TpProcessRequest,
@@ -495,6 +500,7 @@ impl CCTransaction for RegisterAddress {
 }
 
 impl CCTransaction for RegisterTransfer {
+    #[tracing::instrument(skip(tx_ctx, request))]
     fn execute(
         self,
         request: &TpProcessRequest,
@@ -623,6 +629,7 @@ impl CCTransaction for RegisterTransfer {
 }
 
 impl CCTransaction for AddAskOrder {
+    #[tracing::instrument(skip(tx_ctx, request))]
     fn execute(
         self,
         request: &TpProcessRequest,
@@ -685,6 +692,7 @@ impl CCTransaction for AddAskOrder {
 }
 
 impl CCTransaction for AddBidOrder {
+    #[tracing::instrument(skip(tx_ctx, request))]
     fn execute(
         self,
         request: &TpProcessRequest,
@@ -739,6 +747,7 @@ impl CCTransaction for AddBidOrder {
 }
 
 impl CCTransaction for AddOffer {
+    #[tracing::instrument(skip(tx_ctx, request))]
     fn execute(
         self,
         request: &TpProcessRequest,
@@ -864,6 +873,7 @@ impl CCTransaction for AddOffer {
 }
 
 impl CCTransaction for AddDealOrder {
+    #[tracing::instrument(skip(tx_ctx, request))]
     fn execute(
         self,
         request: &TpProcessRequest,
@@ -965,6 +975,7 @@ impl CCTransaction for AddDealOrder {
 }
 
 impl CCTransaction for CompleteDealOrder {
+    #[tracing::instrument(skip(tx_ctx, request))]
     fn execute(
         self,
         request: &TpProcessRequest,
@@ -1090,6 +1101,7 @@ impl CCTransaction for CompleteDealOrder {
 }
 
 impl CCTransaction for LockDealOrder {
+    #[tracing::instrument(skip(tx_ctx, request))]
     fn execute(
         self,
         request: &TpProcessRequest,
@@ -1141,6 +1153,7 @@ impl CCTransaction for LockDealOrder {
 }
 
 impl CCTransaction for CloseDealOrder {
+    #[tracing::instrument(skip(tx_ctx, request))]
     fn execute(
         self,
         request: &TpProcessRequest,
@@ -1246,6 +1259,7 @@ impl CCTransaction for CloseDealOrder {
 }
 
 impl CCTransaction for Exempt {
+    #[tracing::instrument(skip(tx_ctx, request))]
     fn execute(
         self,
         request: &TpProcessRequest,
@@ -1318,6 +1332,7 @@ impl CCTransaction for Exempt {
 }
 
 impl CCTransaction for AddRepaymentOrder {
+    #[tracing::instrument(skip(tx_ctx, request))]
     fn execute(
         self,
         request: &TpProcessRequest,
@@ -1437,6 +1452,7 @@ impl CCTransaction for AddRepaymentOrder {
 }
 
 impl CCTransaction for CompleteRepaymentOrder {
+    #[tracing::instrument(skip(tx_ctx, request))]
     fn execute(
         self,
         request: &TpProcessRequest,
@@ -1490,6 +1506,7 @@ impl CCTransaction for CompleteRepaymentOrder {
 }
 
 impl CCTransaction for CloseRepaymentOrder {
+    #[tracing::instrument(skip(tx_ctx, request))]
     fn execute(
         self,
         request: &TpProcessRequest,
@@ -1584,6 +1601,7 @@ impl CCTransaction for CloseRepaymentOrder {
 }
 
 impl CCTransaction for CollectCoins {
+    #[tracing::instrument(skip(tx_ctx, request))]
     fn execute(
         self,
         request: &TpProcessRequest,
@@ -1648,6 +1666,7 @@ impl CCTransaction for CollectCoins {
     }
 }
 
+#[tracing::instrument(skip(tx_ctx))]
 fn award(
     tx_ctx: &dyn TransactionContext,
     new_formula: bool,
@@ -1717,6 +1736,7 @@ fn award(
     Ok(())
 }
 
+#[tracing::instrument(skip(tx_ctx))]
 fn reward(
     request: &TpProcessRequest,
     tx_ctx: &dyn TransactionContext,
@@ -1786,6 +1806,7 @@ fn reward(
     Ok(())
 }
 
+#[tracing::instrument(skip(tx_ctx, lister))]
 fn filter(
     tx_ctx: &dyn TransactionContext,
     prefix: &str,
@@ -1802,6 +1823,7 @@ fn filter(
 }
 
 impl CCTransaction for Housekeeping {
+    #[tracing::instrument(skip(tx_ctx, request))]
     fn execute(
         self,
         request: &TpProcessRequest,
@@ -1969,8 +1991,17 @@ pub struct CCTransactionHandler {
     gateway_endpoint: String,
 }
 
+impl fmt::Debug for CCTransactionHandler {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("CCTransactionHandler")
+            .field("gateway_endpoint", &self.gateway_endpoint)
+            .finish_non_exhaustive()
+    }
+}
+
 impl CCTransactionHandler {
-    pub fn new<S: Into<String>>(gateway: S) -> Self {
+    #[tracing::instrument]
+    pub fn new<S: Into<String> + fmt::Debug>(gateway: S) -> Self {
         let gateway_endpoint: String = gateway.into();
         let context = zmq::Context::new();
 
@@ -1982,10 +2013,12 @@ impl CCTransactionHandler {
 }
 
 impl TransactionHandler for CCTransactionHandler {
+    #[tracing::instrument]
     fn family_name(&self) -> String {
         NAMESPACE.into()
     }
 
+    #[tracing::instrument]
     fn family_versions(&self) -> Vec<String> {
         vec![
             "1.0".into(),
@@ -1999,10 +2032,12 @@ impl TransactionHandler for CCTransactionHandler {
         ]
     }
 
+    #[tracing::instrument]
     fn namespaces(&self) -> Vec<String> {
         vec![NAMESPACE_PREFIX.clone()]
     }
 
+    #[tracing::instrument(skip(context, request))]
     fn apply(
         &self,
         request: &TpProcessRequest,

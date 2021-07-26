@@ -1,3 +1,4 @@
+use core::fmt;
 use std::{iter::repeat, mem};
 
 use crate::handler::{constants::SETTINGS_NAMESPACE, types::CCApplyError};
@@ -29,6 +30,15 @@ pub struct HandlerContext<'tx> {
     tx_ctx: &'tx dyn TransactionContext,
 }
 
+impl<'tx> fmt::Debug for HandlerContext<'tx> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("HandlerContext")
+            .field("tip", &self.tip)
+            .field("gateway_endpoint", &self.gateway_endpoint)
+            .finish_non_exhaustive()
+    }
+}
+
 const MAX_KEY_PARTS: usize = 4;
 const ADDRESS_PART_SIZE: usize = 16;
 
@@ -55,6 +65,7 @@ fn short_hash(s: &str) -> String {
 }
 
 impl<'tx> HandlerContext<'tx> {
+    #[tracing::instrument(skip(tx_ctx, gateway_context))]
     pub fn create(
         gateway_context: zmq::Context,
         gateway_endpoint: String,
@@ -73,10 +84,12 @@ impl<'tx> HandlerContext<'tx> {
         })
     }
 
+    #[tracing::instrument]
     pub fn tip(&self) -> u64 {
         self.tip
     }
 
+    #[tracing::instrument]
     pub fn sighash(&self, request: &TpProcessRequest) -> TxnResult<SigHash> {
         // TODO: transitioning
         let signer = request.get_header().get_signer_public_key();
@@ -85,11 +98,13 @@ impl<'tx> HandlerContext<'tx> {
         Ok(SigHash(hash))
     }
 
+    #[tracing::instrument]
     pub fn guid(&self, request: &TpProcessRequest) -> Guid {
         // TODO: transitioning
         Guid(request.get_header().get_nonce().to_owned())
     }
 
+    #[tracing::instrument]
     pub fn get_setting(&self, key: &str) -> TxnResult<Option<String>> {
         log::debug!("getting setting for key {:?}", key);
         let k = make_settings_key(key);
@@ -166,6 +181,7 @@ impl<'tx> HandlerContext<'tx> {
         }
     }
 
+    #[tracing::instrument]
     pub fn verify(&mut self, gateway_command: &str) -> TxnResult<()> {
         self.local_gateway_sock
             .send(gateway_command, 0)
@@ -205,19 +221,25 @@ pub mod mocked {
     use super::*;
     mockall::mock! {
         pub HandlerContext {
+            #[tracing::instrument]
             pub fn create(
                 gateway_context: zmq::Context,
                 gateway_endpoint: String,
                 tx_ctx: &dyn TransactionContext,
             ) -> TxnResult<Self>;
 
+            #[tracing::instrument]
             pub fn tip(&self) -> u64;
 
+            #[tracing::instrument]
             pub fn sighash(&self, request: &TpProcessRequest) -> TxnResult<SigHash>;
+            #[tracing::instrument]
             pub fn guid(&self, request: &TpProcessRequest) -> Guid;
 
+            #[tracing::instrument]
             pub fn get_setting(&self, key: &str) -> TxnResult<Option<String>>;
 
+            #[tracing::instrument]
             pub fn verify(&mut self, gateway_command: &str) -> TxnResult<()>;
         }
     }

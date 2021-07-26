@@ -21,12 +21,14 @@ use log::LevelFilter;
 use log::Record;
 use std::fmt::Arguments;
 use std::io::stdout;
+use tracing_subscriber::prelude::__tracing_subscriber_SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 
 use clap::{clap_app, crate_authors, crate_description, crate_version};
 use fern::colors::ColoredLevelConfig;
-use log::info;
-
 use sawtooth_sdk::processor::TransactionProcessor;
+use tracing::info;
+use tracing_tree::HierarchicalLayer;
 
 const DEFAULT_ENDPOINT: &str = "tcp://localhost:4004";
 const DEFAULT_GATEWAY: &str = "tcp://localhost:55555";
@@ -59,18 +61,30 @@ fn setup_logs(verbose_count: u64) -> Result<()> {
         _ => LevelFilter::Trace,
     };
 
-    Dispatch::new()
-        .level(level)
-        .level_for("sawtooth_sdk::consensus::zmq_driver", LevelFilter::Error)
-        .level_for("sawtooth_sdk::messaging::zmq_stream", LevelFilter::Error)
-        .format(fmt_log)
-        .chain(stdout())
-        .apply()?;
+    // tracing_subscriber::FmtSubscriber::default().init();
+    tracing_subscriber::registry()
+        .with(tracing_subscriber::EnvFilter::from_default_env())
+        .with(
+            HierarchicalLayer::new(4)
+                .with_ansi(true)
+                .with_indent_lines(true)
+                .with_targets(true),
+        )
+        .init();
+
+    // Dispatch::new()
+    //     .level(level)
+    //     .level_for("sawtooth_sdk::consensus::zmq_driver", LevelFilter::Error)
+    //     .level_for("sawtooth_sdk::messaging::zmq_stream", LevelFilter::Error)
+    //     .format(fmt_log)
+    //     .chain(stdout())
+    //     .apply()?;
 
     Ok(())
 }
 
 #[cfg(not(all(test, feature = "mock")))]
+#[tracing::instrument]
 fn main() -> Result<()> {
     let matches = clap_app!(consensus_engine =>
       (version: crate_version!())
