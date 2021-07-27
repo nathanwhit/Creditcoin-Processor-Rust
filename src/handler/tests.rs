@@ -12,6 +12,7 @@ use std::sync::Once;
 
 use enclose::enclose;
 use itertools::Itertools;
+use mockall::lazy_static;
 use mockall::predicate;
 use prost::Message;
 use rug::Integer;
@@ -49,6 +50,10 @@ use once_cell::sync::Lazy;
 // TEST UTILS
 
 static INIT_LOGS: Once = Once::new();
+lazy_static! {
+    static ref INVESTOR_SIGHASH: SigHash = SigHash::from("investor");
+    static ref FUNDRAISER_SIGHASH: SigHash = SigHash::from("fundraiser");
+}
 
 fn init_logs() {
     INIT_LOGS.call_once(|| {
@@ -1667,7 +1672,7 @@ fn execute_failure(
 #[test]
 fn send_funds_success() {
     init_logs();
-    let destination = SigHash("destination".into());
+    let destination = FUNDRAISER_SIGHASH.clone();
     let command = SendFunds {
         amount: 1.into(),
         sighash: destination.clone(),
@@ -1677,7 +1682,7 @@ fn send_funds_success() {
 
     let mut tx_ctx = MockTransactionContext::default();
 
-    let my_sighash = SigHash("mysighash".into());
+    let my_sighash = INVESTOR_SIGHASH.clone();
     let my_wallet_id = WalletId::from(&my_sighash);
     let dest_wallet_id = WalletId::from(&destination);
 
@@ -1709,7 +1714,7 @@ fn send_funds_success() {
 fn send_funds_cannot_afford_fee() {
     init_logs();
 
-    let destination = SigHash::from("destination");
+    let destination = FUNDRAISER_SIGHASH.clone();
     let command = SendFunds {
         amount: 1.into(),
         sighash: destination.clone(),
@@ -1719,7 +1724,7 @@ fn send_funds_cannot_afford_fee() {
 
     let mut tx_ctx = MockTransactionContext::default();
 
-    let my_sighash = SigHash::from("mysighash");
+    let my_sighash = INVESTOR_SIGHASH.clone();
     let my_wallet_id = WalletId::from(&my_sighash);
 
     let mut ctx = MockHandlerContext::default();
@@ -1734,7 +1739,7 @@ fn send_funds_cannot_afford_fee() {
 fn send_funds_cannot_afford_amount() {
     init_logs();
 
-    let destination = SigHash::from("destination");
+    let destination = FUNDRAISER_SIGHASH.clone();
     let command = SendFunds {
         amount: 1.into(),
         sighash: destination.clone(),
@@ -1744,7 +1749,7 @@ fn send_funds_cannot_afford_amount() {
 
     let mut tx_ctx = MockTransactionContext::default();
 
-    let my_sighash = SigHash::from("mysighash");
+    let my_sighash = INVESTOR_SIGHASH.clone();
     let my_wallet_id = WalletId::from(&my_sighash);
 
     let mut ctx = MockHandlerContext::default();
@@ -1759,7 +1764,7 @@ fn send_funds_cannot_afford_amount() {
 fn send_funds_to_self() {
     init_logs();
 
-    let destination = SigHash::from("mysighash");
+    let destination = INVESTOR_SIGHASH.clone();
     let command = SendFunds {
         amount: 1.into(),
         sighash: destination.clone(),
@@ -1769,7 +1774,7 @@ fn send_funds_to_self() {
 
     let tx_ctx = MockTransactionContext::default();
 
-    let my_sighash = SigHash::from("mysighash");
+    let my_sighash = INVESTOR_SIGHASH.clone();
 
     let mut ctx = MockHandlerContext::default();
     expect!(ctx, sighash -> my_sighash);
@@ -1800,7 +1805,7 @@ fn register_address_success() {
     let mut tx_ctx = MockTransactionContext::default();
     let mut ctx = MockHandlerContext::default();
 
-    let my_sighash = SigHash::from("mysighash");
+    let my_sighash = INVESTOR_SIGHASH.clone();
     let guid = Guid::from("myguid");
 
     expect!(ctx, sighash -> my_sighash);
@@ -1850,7 +1855,7 @@ fn register_address_taken() {
     let mut tx_ctx = MockTransactionContext::default();
     let mut ctx = MockHandlerContext::default();
 
-    let my_sighash = SigHash::from("mysighash");
+    let my_sighash = INVESTOR_SIGHASH.clone();
 
     expect!(ctx, sighash -> my_sighash);
 
@@ -1895,8 +1900,8 @@ fn register_transfer_success() {
     let mut tx_ctx = MockTransactionContext::default();
     let mut ctx = MockHandlerContext::default();
 
-    let my_sighash = SigHash::from("mysighash");
-    let other_sighash = SigHash::from("othersighash");
+    let my_sighash = INVESTOR_SIGHASH.clone();
+    let other_sighash = FUNDRAISER_SIGHASH.clone();
 
     expect!(ctx, sighash -> my_sighash);
 
@@ -1999,7 +2004,7 @@ fn add_ask_order_success() {
     let mut tx_ctx = MockTransactionContext::default();
     let mut ctx = MockHandlerContext::default();
 
-    let my_sighash = SigHash::from("mysighash");
+    let my_sighash = INVESTOR_SIGHASH.clone();
     expect!(ctx, sighash -> my_sighash);
 
     let guid = Guid::from("txnguid");
@@ -2075,7 +2080,7 @@ fn add_bid_order_success() {
     let mut tx_ctx = MockTransactionContext::default();
     let mut ctx = MockHandlerContext::default();
 
-    let my_sighash = SigHash::from("mysighash");
+    let my_sighash = INVESTOR_SIGHASH.clone();
     expect!(ctx, sighash -> my_sighash);
 
     let guid = Guid::from("txnguid");
@@ -2149,7 +2154,7 @@ fn add_offer_success() {
     let mut tx_ctx = MockTransactionContext::default();
     let mut ctx = MockHandlerContext::default();
 
-    let my_sighash = SigHash::from("mysighash");
+    let my_sighash = INVESTOR_SIGHASH.clone();
     expect!(ctx, sighash -> my_sighash);
 
     let guid = Guid::from("txnguid");
@@ -2267,7 +2272,7 @@ fn add_deal_order_success() {
     // Check for existing deal order
     expect!(tx_ctx, get_state_entry where enclose! {(address_id) move |a| a == address_id.as_str()}, returning |_| Ok(None));
 
-    let my_sighash = SigHash::from("mysighash");
+    let my_sighash = FUNDRAISER_SIGHASH.clone();
 
     // Get the sighash of the transaction submitter
     expect!(ctx, sighash -> my_sighash);
@@ -2426,7 +2431,7 @@ fn complete_deal_order_success() {
     let mut tx_ctx = MockTransactionContext::default();
     let mut ctx = MockHandlerContext::default();
 
-    let my_sighash = SigHash::from("mysighash");
+    let my_sighash = INVESTOR_SIGHASH.clone();
 
     expect!(ctx, sighash -> my_sighash);
 
@@ -2533,7 +2538,7 @@ fn lock_deal_order_success() {
     let mut tx_ctx = MockTransactionContext::default();
     let mut ctx = MockHandlerContext::default();
 
-    let my_sighash = SigHash::from("mysighash");
+    let my_sighash = FUNDRAISER_SIGHASH.clone();
 
     expect!(ctx, sighash -> my_sighash);
 
@@ -2602,7 +2607,7 @@ fn close_deal_order_success() {
     let mut tx_ctx = MockTransactionContext::default();
     let mut ctx = MockHandlerContext::default();
 
-    let my_sighash = SigHash::from("mysighash");
+    let my_sighash = FUNDRAISER_SIGHASH.clone();
 
     expect!(ctx, sighash -> my_sighash);
 
@@ -2720,7 +2725,7 @@ fn exempt_success() {
     let mut tx_ctx = MockTransactionContext::default();
     let mut ctx = MockHandlerContext::default();
 
-    let my_sighash = SigHash::from("mysighash");
+    let my_sighash = INVESTOR_SIGHASH.clone();
 
     expect!(ctx, sighash -> my_sighash);
 
@@ -2833,9 +2838,9 @@ fn add_repayment_order_success() {
     let mut tx_ctx = MockTransactionContext::default();
     let mut ctx = MockHandlerContext::default();
 
-    let fundraiser_sighash = SigHash::from("fundraisersighash");
+    let fundraiser_sighash = FUNDRAISER_SIGHASH.clone();
 
-    let my_sighash = SigHash::from("loanersighash");
+    let my_sighash = INVESTOR_SIGHASH.clone();
 
     let other_investor_sighash = SigHash::from("otherinvestorsighash");
 
@@ -2946,9 +2951,9 @@ fn complete_repayment_order_success() {
     let mut tx_ctx = MockTransactionContext::default();
     let mut ctx = MockHandlerContext::default();
 
-    let fundraiser_sighash = SigHash::from("fundraisersighash");
+    let fundraiser_sighash = FUNDRAISER_SIGHASH.clone();
 
-    let my_sighash = SigHash::from("investorsighash");
+    let my_sighash = INVESTOR_SIGHASH.clone();
 
     let buyer_sighash = SigHash::from("buyersighash");
 
@@ -3063,11 +3068,11 @@ fn close_repayment_order_success() {
     let mut tx_ctx = MockTransactionContext::default();
     let mut ctx = MockHandlerContext::default();
 
-    let fundraiser_sighash = SigHash::from("fundraisersighash");
+    let fundraiser_sighash = FUNDRAISER_SIGHASH.clone();
 
     let my_sighash = SigHash::from("buyersighash");
 
-    let owner_sighash = SigHash::from("investorsighash");
+    let owner_sighash = INVESTOR_SIGHASH.clone();
 
     expect!(ctx, sighash -> my_sighash);
 
