@@ -1906,14 +1906,14 @@ fn signer_from_file(profile: &str) -> Signer {
     // TODO: read keys via command line args
     let mut private_key_file = File::open(private_key_file_name).unwrap();
     let mut private_key_hex = String::new();
-    private_key_file.read_to_string(&mut private_key_hex).unwrap();
+    private_key_file
+        .read_to_string(&mut private_key_hex)
+        .unwrap();
 
     let private_key = Secp256k1PrivateKey::from_hex(private_key_hex.trim()).unwrap();
     let signing_context = create_context("secp256k1").unwrap();
-    let factory = CryptoFactory::new(&*signing_context);
-    factory.new_signer(&private_key)
+    Signer::new_boxed(signing_context, Box::new(private_key))
 }
-
 
 #[track_caller]
 #[cfg(all(test, feature = "integration-testing"))]
