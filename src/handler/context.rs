@@ -274,6 +274,7 @@ mod tests {
     use crate::handler::{
         constants::{TX_FEE, TX_FEE_KEY},
         tests::mocked::MockTransactionContext,
+        types::Credo,
     };
     use sawtooth_sdk::messages::Message;
     #[test]
@@ -295,7 +296,7 @@ mod tests {
         let context =
             HandlerContext::create(zmq_context, "tcp://dummy:8080".into(), &mock_tx_ctx).unwrap();
         let result = context.tx_fee().unwrap().clone();
-        assert_eq!(result, 1u64);
+        assert_eq!(result, Credo(1.into()));
     }
     #[test]
     fn tx_fee_falls_back_to_default() {
