@@ -2321,39 +2321,38 @@ impl CCTransactionHandler {
     }
 }
 
-// used in integration testing
-fn _family_name() -> String {
-    NAMESPACE.into()
-}
-
-fn _family_versions() -> Vec<String> {
-    vec![
-        "1.0".into(),
-        "1.1".into(),
-        "1.2".into(),
-        "1.3".into(),
-        "1.4".into(),
-        "1.5".into(),
-        "1.6".into(),
-        "1.7".into(),
-    ]
-}
-
-fn _namespaces() -> Vec<String> {
-    vec![NAMESPACE_PREFIX.clone()]
+impl CCTransactionHandler {
+    pub fn family_name() -> String {
+        NAMESPACE.into()
+    }
+    pub fn family_versions() -> Vec<String> {
+        vec![
+            "1.0".into(),
+            "1.1".into(),
+            "1.2".into(),
+            "1.3".into(),
+            "1.4".into(),
+            "1.5".into(),
+            "1.6".into(),
+            "1.7".into(),
+        ]
+    }
+    pub fn namespaces() -> Vec<String> {
+        vec![NAMESPACE_PREFIX.clone()]
+    }
 }
 
 impl TransactionHandler for CCTransactionHandler {
     fn family_name(&self) -> String {
-        _family_name()
+        Self::family_name()
     }
 
     fn family_versions(&self) -> Vec<String> {
-        _family_versions()
+        Self::family_versions()
     }
 
     fn namespaces(&self) -> Vec<String> {
-        _namespaces()
+        Self::namespaces()
     }
 
     fn apply(

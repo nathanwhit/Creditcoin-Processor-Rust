@@ -24,7 +24,6 @@ use prost::Message;
 use protobuf::Message as ProtobufMessage;
 use protobuf::RepeatedField;
 use rand::{thread_rng, Rng};
-use reqwest;
 use rug::Integer;
 use sawtooth_sdk::messages::batch::{Batch, BatchHeader, BatchList};
 use sawtooth_sdk::messages::processor::TpProcessRequest;
@@ -56,7 +55,6 @@ use super::RegisterAddress;
 use super::RegisterTransfer;
 use super::SendFunds;
 use super::{CCTransaction, CCTransactionHandler, Housekeeping};
-use super::{_family_name, _family_versions, _namespaces};
 
 use once_cell::sync::Lazy;
 
@@ -307,7 +305,7 @@ impl ToGenericCommand for AddAskOrder {
             amount_str,
             interest,
             maturity,
-            fee,
+            fee_str,
             expiration,
         } = self;
         SixArgCommand::new(
@@ -316,7 +314,7 @@ impl ToGenericCommand for AddAskOrder {
             amount_str,
             interest,
             maturity,
-            fee,
+            fee_str,
             expiration,
         )
     }
@@ -329,7 +327,7 @@ impl ToGenericCommand for AddBidOrder {
             amount_str,
             interest,
             maturity,
-            fee,
+            fee_str,
             expiration,
         } = self;
         SixArgCommand::new(
@@ -338,7 +336,7 @@ impl ToGenericCommand for AddBidOrder {
             amount_str,
             interest,
             maturity,
-            fee,
+            fee_str,
             expiration,
         )
     }
@@ -407,14 +405,14 @@ impl ToGenericCommand for AddRepaymentOrder {
         let AddRepaymentOrder {
             deal_order_id,
             address_id,
-            amount,
+            amount_str,
             expiration,
         } = self;
         FourArgCommand::new(
             "AddRepaymentOrder",
             deal_order_id,
             address_id,
-            amount,
+            amount_str,
             expiration,
         )
     }
@@ -1855,8 +1853,7 @@ fn expect_delete_state_entries(tx_ctx: &mut MockTransactionContext, entries: Vec
 
 impl Default for CCTransactionHandler {
     fn default() -> Self {
-        let mut processor = TransactionProcessor::new("");
-        Self::new(&mut processor, "")
+        Self::new("")
     }
 }
 
@@ -1900,8 +1897,8 @@ fn execute_failure(
 }
 
 fn signer_from_file(profile: &str) -> Signer {
-    let home = std::env::var("HOME").unwrap();
-    let private_key_file_name = format!("{}/.sawtooth/keys/{}.priv", home, profile);
+    let mut private_key_file_name = dirs::home_dir().unwrap();
+    private_key_file_name.push(format!(".sawtooth/keys/{}.priv", profile));
 
     // TODO: read keys via command line args
     let mut private_key_file = File::open(private_key_file_name).unwrap();
@@ -1924,15 +1921,17 @@ fn execute_failure(
     _ctx: &mut MockHandlerContext,
     expected_err: &str,
 ) {
+    use std::time::Duration;
+
     let command = command.to_generic_command();
     let payload_bytes = serde_cbor::to_vec(&command).unwrap();
-    let signer = signer_from_file("testing");
+    let signer = signer_from_file("my_key");
 
     // build transaction
     let mut txn_header = TransactionHeader::new();
-    txn_header.set_family_name(_family_name());
+    txn_header.set_family_name(CCTransactionHandler::family_name());
 
-    let family_vers = _family_versions();
+    let family_vers = CCTransactionHandler::family_versions();
     let last_version = family_vers.last().unwrap();
     txn_header.set_family_version(last_version.to_string());
 
@@ -1943,7 +1942,7 @@ fn execute_failure(
         .expect("Error generating random nonce");
     txn_header.set_nonce(to_hex_string(&nonce.to_vec()));
 
-    let input_vec = _namespaces();
+    let input_vec = CCTransactionHandler::namespaces();
     let output_vec = input_vec.clone();
 
     txn_header.set_inputs(RepeatedField::from_vec(input_vec));
@@ -2014,15 +2013,13 @@ fn execute_failure(
         .expect("Error converting batch list to bytes");
 
     // TODO: specify address via cli flags
-    let client = reqwest::blocking::Client::new();
-    let response = client
-        .post("http://127.0.0.1:8008/batches")
-        .header("Content-Type", "application/octet-stream")
-        .body(batch_list_bytes)
-        .send()
+    let response = ureq::post("http://127.0.0.1:8008/batches")
+        .set("Content-Type", "application/octet-stream")
+        .timeout(Duration::from_secs(30))
+        .send_bytes(&batch_list_bytes)
         .unwrap();
 
-    let body = response.text();
+    let body = response.into_string().unwrap();
 
     println!("***** DEBUG, body={:?}", body);
 

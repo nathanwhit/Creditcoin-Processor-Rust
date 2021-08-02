@@ -61,6 +61,7 @@ impl From<ContextError> for CCApplyError {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, From, Into, Default)]
+#[cfg_attr(test, derive(serde::Serialize))]
 pub struct SigHash(pub String);
 
 impl From<&str> for SigHash {
@@ -105,6 +106,7 @@ impl fmt::Display for SigHash {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, From, Into, Default)]
+#[cfg_attr(test, derive(serde::Serialize))]
 pub struct WalletId(pub String);
 
 impl From<&SigHash> for WalletId {
@@ -136,6 +138,7 @@ impl AsRef<str> for WalletId {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, From, Into, Default)]
+#[cfg_attr(test, derive(serde::Serialize))]
 pub struct Guid(pub String);
 
 impl From<&str> for Guid {
@@ -153,6 +156,7 @@ impl Deref for Guid {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, From, Into, Default)]
+#[cfg_attr(test, derive(serde::Serialize))]
 pub struct Address(pub String);
 
 impl Address {
@@ -222,6 +226,7 @@ impl From<&Address> for String {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, From, Into, Default)]
+#[cfg_attr(test, derive(serde::Serialize))]
 pub struct State(pub Vec<u8>);
 
 impl Deref for State {
@@ -257,6 +262,8 @@ pub type StateVec = Vec<(String, Vec<u8>)>;
     AddAssign,
     SubAssign,
 )]
+#[cfg_attr(test, derive(serde::Serialize))]
+#[cfg_attr(test, serde(into = "String"))]
 pub struct Credo(pub Integer);
 
 impl Credo {
@@ -343,6 +350,11 @@ impl From<i64> for Credo {
         Self(Integer::from(v))
     }
 }
+impl From<Credo> for String {
+    fn from(val: Credo) -> String {
+        val.to_string()
+    }
+}
 #[derive(
     Debug,
     Display,
@@ -360,6 +372,8 @@ impl From<i64> for Credo {
     AddAssign,
     SubAssign,
 )]
+#[cfg_attr(test, derive(serde::Serialize))]
+#[cfg_attr(test, serde(into = "String"))]
 pub struct CurrencyAmount(pub Integer);
 
 impl CurrencyAmount {
@@ -411,10 +425,17 @@ impl Add<i64> for CurrencyAmount {
         Self(self.0 + rhs)
     }
 }
+impl From<CurrencyAmount> for String {
+    fn from(val: CurrencyAmount) -> String {
+        val.to_string()
+    }
+}
 
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, From, Default, Mul, Div, Add, AddAssign,
 )]
+#[cfg_attr(test, derive(serde::Serialize))]
+
 pub struct BlockNum(pub u64);
 
 impl BlockNum {
