@@ -8,7 +8,7 @@ use super::{
         CCApplyError::{InternalError, InvalidTransaction},
         Credo, Guid, SigHash, TxnResult,
     },
-    utils::{self, sha512_id},
+    utils,
 };
 use once_cell::unsync::OnceCell;
 use sawtooth_sdk::{
