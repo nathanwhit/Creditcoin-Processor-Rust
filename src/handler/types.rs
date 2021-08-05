@@ -208,8 +208,8 @@ pub type StateVec = Vec<(String, Vec<u8>)>;
     AddAssign,
     SubAssign,
 )]
-#[cfg_attr(test, derive(serde::Serialize))]
-#[cfg_attr(test, serde(into = "String"))]
+#[cfg_attr(any(test, feature = "integration-testing"), derive(serde::Serialize))]
+#[cfg_attr(any(test, feature = "integration-testing"), serde(into = "String"))]
 pub struct Credo(pub Integer);
 
 impl Credo {
@@ -307,8 +307,8 @@ impl From<Credo> for String {
     AddAssign,
     SubAssign,
 )]
-#[cfg_attr(test, derive(serde::Serialize))]
-#[cfg_attr(test, serde(into = "String"))]
+#[cfg_attr(any(test, feature = "integration-testing"), derive(serde::Serialize))]
+#[cfg_attr(any(test, feature = "integration-testing"), serde(into = "String"))]
 pub struct CurrencyAmount(pub Integer);
 
 impl CurrencyAmount {
@@ -369,7 +369,7 @@ impl From<CurrencyAmount> for String {
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, From, Default, Mul, Div, Add, AddAssign,
 )]
-#[cfg_attr(test, derive(serde::Serialize))]
+#[cfg_attr(any(test, feature = "integration-testing"), derive(serde::Serialize))]
 
 pub struct BlockNum(pub u64);
 

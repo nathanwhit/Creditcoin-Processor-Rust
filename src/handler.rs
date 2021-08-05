@@ -1,6 +1,6 @@
 pub mod constants;
 pub mod context;
-mod tests;
+pub mod tests;
 pub mod types;
 pub mod utils;
 
@@ -66,109 +66,109 @@ pub enum CCCommand {
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub struct SendFunds {
-    amount: Credo,
-    sighash: SigHash,
+    pub amount: Credo,
+    pub sighash: SigHash,
 }
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub struct RegisterAddress {
-    blockchain: String,
-    address: String,
-    network: String,
+    pub blockchain: String,
+    pub address: String,
+    pub network: String,
 }
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub struct RegisterTransfer {
-    gain: CurrencyAmount,
-    order_id: String,
-    blockchain_tx_id: String,
+    pub gain: CurrencyAmount,
+    pub order_id: String,
+    pub blockchain_tx_id: String,
 }
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub struct AddAskOrder {
-    address_id: String,
-    amount_str: String,
-    interest: String,
-    maturity: String,
-    fee_str: String,
-    expiration: BlockNum,
+    pub address_id: String,
+    pub amount_str: String,
+    pub interest: String,
+    pub maturity: String,
+    pub fee_str: String,
+    pub expiration: BlockNum,
 }
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub struct AddBidOrder {
-    address_id: String,
-    amount_str: String,
-    interest: String,
-    maturity: String,
-    fee_str: String,
-    expiration: BlockNum,
+    pub address_id: String,
+    pub amount_str: String,
+    pub interest: String,
+    pub maturity: String,
+    pub fee_str: String,
+    pub expiration: BlockNum,
 }
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub struct AddOffer {
-    ask_order_id: String,
-    bid_order_id: String,
-    expiration: BlockNum,
+    pub ask_order_id: String,
+    pub bid_order_id: String,
+    pub expiration: BlockNum,
 }
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub struct AddDealOrder {
-    offer_id: String,
-    expiration: BlockNum,
+    pub offer_id: String,
+    pub expiration: BlockNum,
 }
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub struct CompleteDealOrder {
-    deal_order_id: String,
-    transfer_id: String,
+    pub deal_order_id: String,
+    pub transfer_id: String,
 }
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub struct LockDealOrder {
-    deal_order_id: String,
+    pub deal_order_id: String,
 }
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub struct CloseDealOrder {
-    deal_order_id: String,
-    transfer_id: String,
+    pub deal_order_id: String,
+    pub transfer_id: String,
 }
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub struct Exempt {
-    deal_order_id: String,
-    transfer_id: String,
+    pub deal_order_id: String,
+    pub transfer_id: String,
 }
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub struct AddRepaymentOrder {
-    deal_order_id: String,
-    address_id: String,
-    amount_str: String,
-    expiration: BlockNum,
+    pub deal_order_id: String,
+    pub address_id: String,
+    pub amount_str: String,
+    pub expiration: BlockNum,
 }
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub struct CompleteRepaymentOrder {
-    repayment_order_id: String,
+    pub repayment_order_id: String,
 }
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub struct CloseRepaymentOrder {
-    repayment_order_id: String,
-    transfer_id: String,
+    pub repayment_order_id: String,
+    pub transfer_id: String,
 }
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub struct CollectCoins {
-    eth_address: String,
-    amount: Credo,
-    blockchain_tx_id: String,
+    pub eth_address: String,
+    pub amount: Credo,
+    pub blockchain_tx_id: String,
 }
 
 #[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub struct Housekeeping {
-    block_idx: BlockNum,
+    pub block_idx: BlockNum,
 }
 
 impl TryFrom<Value> for CCCommand {
@@ -384,7 +384,7 @@ fn charge(
 }
 
 #[enum_dispatch(CCCommand)]
-trait CCTransaction: Sized {
+pub trait CCTransaction: Sized {
     fn execute(
         self,
         request: &TpProcessRequest,
