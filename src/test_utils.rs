@@ -1,8 +1,6 @@
 #![cfg(any(test, feature = "integration-testing"))]
 use crate::handler::*;
 use serde::Serialize;
-use serde_cbor::value;
-use std::convert::TryFrom;
 
 macro_rules! command {
     ($num: ident $(,)? $($param: ident),*) => {

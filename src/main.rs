@@ -1,6 +1,5 @@
+#![cfg(not(all(test, feature = "mock")))]
 use anyhow::Result;
-use std::fmt::Arguments;
-use std::io::stdout;
 
 use clap::{clap_app, crate_authors, crate_description, crate_version};
 use log::info;
@@ -8,7 +7,6 @@ use log::info;
 use ccprocessor_rust::{DEFAULT_ENDPOINT, DEFAULT_GATEWAY};
 use sawtooth_sdk::processor::TransactionProcessor;
 
-#[cfg(not(all(test, feature = "mock")))]
 fn main() -> Result<()> {
     let matches = clap_app!(consensus_engine =>
       (version: crate_version!())

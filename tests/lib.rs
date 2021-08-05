@@ -1,38 +1,35 @@
 #![cfg(feature = "integration-testing")]
 use anyhow::Result;
-use bollard::container::{
-    Config, CreateContainerOptions, InspectContainerOptions, NetworkingConfig,
-    RemoveContainerOptions,
-};
+use bollard::container::{Config, CreateContainerOptions, RemoveContainerOptions};
 use bollard::image::CreateImageOptions;
-use bollard::models::{EndpointSettings, HostConfig, PortBinding};
+use bollard::models::{HostConfig, PortBinding};
 use bollard::network::CreateNetworkOptions;
 use bollard::Docker;
 use ccprocessor_rust::handler::types::SigHash;
-use ccprocessor_rust::handler::utils::{sha512_id, to_hex_string};
-use ccprocessor_rust::handler::{CCTransaction, CCTransactionHandler, CollectCoins, SendFunds};
-use ccprocessor_rust::{test_utils::*, DEFAULT_ENDPOINT, DEFAULT_GATEWAY};
+use ccprocessor_rust::handler::utils::to_hex_string;
+use ccprocessor_rust::handler::{CCTransaction, CCTransactionHandler, CollectCoins};
+use ccprocessor_rust::test_utils::*;
 use derive_more::{Deref, DerefMut};
-use futures_lite::{Future, Stream, StreamExt};
-use itertools::Itertools;
+use futures_lite::{Future, StreamExt};
+
 use maplit::hashmap;
 use openssl::sha::sha512;
 use protobuf::{Message, RepeatedField};
 use rand::{thread_rng, Rng};
 use sawtooth_sdk::messages::batch::{Batch, BatchHeader, BatchList};
 use sawtooth_sdk::messages::transaction::Transaction;
-use sawtooth_sdk::processor::TransactionProcessor;
+
 use sawtooth_sdk::{
     messages::transaction::TransactionHeader,
     signing::{create_context, secp256k1::Secp256k1PrivateKey, Signer},
 };
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use std::net::Ipv4Addr;
-use std::panic::{catch_unwind, panic_any};
+
 use std::sync::atomic::AtomicBool;
-use std::sync::Arc;
-use std::time::Duration;
-use std::{fs::File, io::Read, sync::Once};
+use std::sync::{Arc, Once};
+use std::time::{Duration, Instant};
+use std::{fs::File, io::Read};
 use tokio::runtime::Runtime;
 use ureq::Response;
 // use test_env_log::test;
@@ -53,11 +50,11 @@ where
 pub async fn ensure_image_present(docker: &Docker, image: &str, tag: &str) -> Result<()> {
     let image_name = format!("{}:{}", image, tag);
     match docker.inspect_image(&image_name).await {
-        Ok(image) => {
+        Ok(_image) => {
             println!("got image");
         }
-        Err(e) => {
-            while let Some(Ok(response)) = docker
+        Err(_e) => {
+            while let Some(Ok(_response)) = docker
                 .create_image(
                     Some(CreateImageOptions {
                         from_image: image,
@@ -79,7 +76,6 @@ pub async fn ensure_image_present(docker: &Docker, image: &str, tag: &str) -> Re
 
 pub fn random_name(base: &str) -> String {
     use rand::distributions::Alphanumeric;
-    use rand::{thread_rng, Rng};
     use std::iter;
     let mut rng = thread_rng();
     let chars: String = iter::repeat(())
@@ -97,7 +93,18 @@ pub struct DockerClient {
     pub client: Docker,
     cleanup_containers: Vec<String>,
     cleanup_networks: Vec<String>,
-    // validator_
+    validator_component_port: u16,
+    validator_endpoint_port: u16,
+    rest_api_port: u16,
+    gateway_port: u16,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct PortConfig {
+    validator_component: u16,
+    validator_endpoint: u16,
+    rest_api: u16,
+    gateway: u16,
 }
 
 impl DockerClient {
@@ -106,6 +113,10 @@ impl DockerClient {
             client: Docker::connect_with_local_defaults().unwrap(),
             cleanup_containers: vec![],
             cleanup_networks: vec![],
+            validator_component_port: portpicker::pick_unused_port().unwrap(),
+            validator_endpoint_port: portpicker::pick_unused_port().unwrap(),
+            rest_api_port: portpicker::pick_unused_port().unwrap(),
+            gateway_port: portpicker::pick_unused_port().unwrap(),
         }
     }
     pub fn run<T: Future<Output = ()> + Send + 'static>(self, func: impl FnOnce(&Self) -> T) {
@@ -163,7 +174,6 @@ impl DockerClient {
 
     async fn get_container_ip(&self, network: &str, container: &str) -> Result<Ipv4Addr> {
         let details = self.inspect_network::<&str>(network, None).await?;
-        log::warn!("Details = {:?}", details);
         if let Some(containers) = details.containers {
             if let Some(info) = containers.get(container) {
                 if let Some(ip) = &info.ipv4_address {
@@ -202,28 +212,34 @@ pub async fn setup(docker: &mut DockerClient) -> Result<()> {
 
     let name = random_name("creditcoin-validator");
 
+    let comp_port = docker.validator_component_port;
+    let endpoint_port = docker.validator_endpoint_port;
+
+    let comp_port_str = format!("{}/tcp", docker.validator_component_port);
+    let endpoint_port_str = format!("{}/tcp", docker.validator_endpoint_port);
+
     let validator = docker
         .create_container(
             Some(CreateContainerOptions { name }),
             Config {
                 exposed_ports: Some(hashmap! {
-                    "4004/tcp" => hashmap! {},
-                    "8800/tcp" => hashmap! {}
+                    comp_port_str.as_str() => hashmap! {},
+                    endpoint_port_str.as_str() => hashmap! {}
                 }),
                 cmd: Some(vec![
                     "bash", "-c",
-                    r#"if [[ ! -f /etc/sawtooth/keys/validator.pub ]]; then echo "First run"; sawadm keygen; sawset genesis --key /etc/sawtooth/keys/validator.priv; sawset proposal create --key /etc/sawtooth/keys/validator.priv sawtooth-consensus.algorithm.name=PoW sawtooth.consensus.algorithm.version=0.1 -o config.batch; sawadm genesis config-genesis.batch config.batch; fi; sawtooth-validator -vv --endpoint tcp://173.66.57.160:8800 --bind component:tcp://0.0.0.0:4004 --bind network:tcp://0.0.0.0:8800"#,
+                    &format!(r#"if [[ ! -f /etc/sawtooth/keys/validator.pub ]]; then echo "First run"; sawadm keygen; sawset genesis --key /etc/sawtooth/keys/validator.priv; sawset proposal create --key /etc/sawtooth/keys/validator.priv sawtooth-consensus.algorithm.name=PoW sawtooth.consensus.algorithm.version=0.1 -o config.batch; sawadm genesis config-genesis.batch config.batch; fi; sawtooth-validator -vv --endpoint tcp://173.66.57.160:{endp} --bind component:tcp://0.0.0.0:{comp} --bind network:tcp://0.0.0.0:{endp}"#, endp=endpoint_port, comp=comp_port),
                 ]),
                 image: Some("gluwa/creditcoin-validator:1.7.1"),
                 host_config: Some(HostConfig {
                     network_mode: Some(network_id.clone()),
                     port_bindings: Some(hashmap! {
-                        "4004/tcp".into() => Some(vec![PortBinding {
-                            host_port: Some("4004".into()),
+                        comp_port_str.clone() => Some(vec![PortBinding {
+                            host_port: Some(docker.validator_component_port.to_string()),
                             host_ip: None,
                         }]),
-                        "8800/tcp".into() => Some(vec![PortBinding {
-                            host_port: Some("8800".into()),
+                        endpoint_port_str.clone() => Some(vec![PortBinding {
+                            host_port: Some(docker.validator_endpoint_port.to_string()),
                             host_ip: None,
                         }])
                     }),
@@ -247,12 +263,15 @@ pub async fn setup(docker: &mut DockerClient) -> Result<()> {
             Some(CreateContainerOptions { name }),
             Config {
                 exposed_ports: Some(hashmap! {
-                    "4004/tcp" => hashmap! {}
+                    comp_port_str.as_str() => hashmap! {}
                 }),
                 cmd: Some(vec![
                     "bash",
                     "-c",
-                    &format!("settings-tp -vv -C tcp://{}:4004", &validator_ip),
+                    &format!(
+                        "settings-tp -vv -C tcp://{}:{}",
+                        &validator_ip, docker.validator_component_port
+                    ),
                 ]),
                 image: Some("hyperledger/sawtooth-settings-tp:1.0"),
                 host_config: Some(HostConfig {
@@ -260,46 +279,41 @@ pub async fn setup(docker: &mut DockerClient) -> Result<()> {
 
                     ..Default::default()
                 }),
-
-                // networking_config: Some(NetworkingConfig {
-                //     endpoints_config: Some(hashmap! {
-                //         &network_id => EndpointSettings {
-
-                //         }
-                //     }),
-                // }),
                 ..Default::default()
             },
         )
         .await?;
 
-    log::warn!("Settings = {:?}", settings);
     let settings_id = settings.id;
 
     docker.cleanup_containers.push(settings_id.clone());
 
     let name = random_name("rest-api");
+
+    let rest_port = docker.rest_api_port.to_string();
     let rest_api = docker
         .create_container(
             Some(CreateContainerOptions { name }),
             Config {
                 exposed_ports: Some(hashmap! {
-                    "8008" => hashmap! {}
+                    rest_port.as_str() => hashmap! {}
                 }),
                 cmd: Some(vec![
                     "bash",
                     "-c",
                     &format!(
-                        "sawtooth-rest-api -vv -C tcp://{}:4004 --bind 0.0.0.0:8008",
-                        &validator_ip
+                        "sawtooth-rest-api -vv -C tcp://{}:{} --bind 0.0.0.0:{rest}",
+                        &validator_ip,
+                        docker.validator_component_port,
+                        rest = docker.rest_api_port
                     ),
                 ]),
                 image: Some("gluwa/sawtooth-rest-api:latest"),
                 host_config: Some(HostConfig {
                     network_mode: Some(network_id.clone()),
                     port_bindings: Some(hashmap! {
-                        "8008".into() => Some(vec![PortBinding {
-                            host_port: Some("8008".into()),
+                        rest_port.clone() => Some(vec![PortBinding {
+                            host_port: Some(rest_port.clone()),
                             host_ip: Some("0.0.0.0".into()),
                         }]),
                     }),
@@ -363,21 +377,27 @@ struct RawBatchStatusResponse {
 #[derive(Deserialize, Clone, Debug)]
 struct RawBatchStatus {
     id: String,
-    invalid_transactions: Vec<String>,
+    invalid_transactions: Vec<FailedTransaction>,
     status: String,
 }
 
 #[derive(Clone, Debug)]
 enum BatchStatus {
     Committed,
-    Invalid(Vec<String>),
+    Invalid(Vec<FailedTransaction>),
     Pending,
     Unknown,
 }
 
+#[derive(Deserialize, Clone, Debug)]
+struct FailedTransaction {
+    id: String,
+    message: String,
+}
+
 impl From<RawBatchStatus> for BatchStatus {
     fn from(raw: RawBatchStatus) -> Self {
-        let status = raw.status.clone();
+        let _status = raw.status.clone();
         match raw.status.as_str() {
             "COMMITTED" => Self::Committed,
             "PENDING" => Self::Pending,
@@ -395,21 +415,12 @@ impl BatchStatus {
             _ => false,
         }
     }
-    fn is_successful(&self) -> bool {
-        match self {
-            Self::Committed => true,
-            _ => false,
-        }
-    }
 }
 
-fn check_status(link: &str) -> BatchStatus {
-    let status = ureq::get(link).call().unwrap().into_string().unwrap();
-    let response: RawBatchStatusResponse = serde_json::from_str(&status).unwrap();
-    response.data[0].clone().into()
-}
-
-fn send_command(command: impl CCTransaction + ToGenericCommand) -> Response {
+fn send_command(
+    command: impl CCTransaction + ToGenericCommand,
+    ports: PortConfig,
+) -> BatchSendResponse {
     let command = command.to_generic_command();
     let payload_bytes = serde_cbor::to_vec(&command).unwrap();
     let signer = signer_from_file("my_key");
@@ -500,102 +511,158 @@ fn send_command(command: impl CCTransaction + ToGenericCommand) -> Response {
         .expect("Error converting batch list to bytes");
 
     // TODO: specify address via cli flags
-    let response = ureq::post("http://localhost:8008/batches")
+    let response = ureq::post(&format!("http://localhost:{}/batches", ports.rest_api))
         .set("Content-Type", "application/octet-stream")
         .timeout(Duration::from_secs(30))
         .send_bytes(&batch_list_bytes)
         .unwrap();
 
+    let response: BatchSendResponse = serde_json::from_reader(response.into_reader()).unwrap();
+
     response
 }
 
-#[track_caller]
-fn execute_success(command: impl CCTransaction + ToGenericCommand) {
-    use std::time::Duration;
+fn check_status(link: &str) -> BatchStatus {
+    let status = ureq::get(link).call().unwrap().into_string().unwrap();
+    let response: RawBatchStatusResponse = serde_json::from_str(&status).unwrap();
+    response.data[0].clone().into()
+}
 
-    let response = send_command(command);
-    let body = response.into_string().unwrap();
-
-    let response: BatchSendResponse = serde_json::from_str(&body).unwrap();
-    println!("***** DEBUG, response={:?}", response);
-
-    let mut status = check_status(&response.link);
+fn complete_batch(link: &str, timeout: Option<Duration>) -> Option<BatchStatus> {
+    let mut status = check_status(&link);
+    let start = Instant::now();
+    let timeout = timeout.unwrap_or(Duration::from_secs(15));
+    let mut timed_out = false;
     while !status.is_complete() {
-        status = check_status(&response.link);
+        if start.elapsed() > timeout {
+            timed_out = true;
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(200));
+        status = check_status(&link);
     }
+    if timed_out && !status.is_complete() {
+        None
+    } else {
+        Some(status)
+    }
+}
 
+#[track_caller]
+fn execute_success(command: impl CCTransaction + ToGenericCommand, ports: PortConfig) {
+    let response = send_command(command, ports);
+
+    let status = complete_batch(&response.link, None).unwrap();
     log::warn!("status = {:?}", status);
 
     assert!(matches!(status, BatchStatus::Committed));
-    // TODO: send to REST API and expect failure!
 }
 
 #[track_caller]
-fn execute_failure(command: impl CCTransaction + ToGenericCommand, expected_err: &str) {
-    use std::time::Duration;
+fn execute_failure(
+    command: impl CCTransaction + ToGenericCommand,
+    expected_err: &str,
+    ports: PortConfig,
+) {
+    let response = send_command(command, ports);
 
-    let response = send_command(command);
-    let body = response.into_string().unwrap();
-
-    let response: BatchSendResponse = serde_json::from_str(&body).unwrap();
-
-    println!("***** DEBUG, body={:?}", body);
+    let status = complete_batch(&response.link, None).unwrap();
 
     // TODO: send to REST API and expect failure!
     println!("DEBUG: expected failure {}", expected_err);
+    match status {
+        BatchStatus::Committed => panic!("Expected failure but the transaction was accepted"),
+        BatchStatus::Invalid(v) => {
+            let f = v.first().unwrap();
+            assert_eq!(f.message, expected_err);
+        }
+        BatchStatus::Pending => panic!("Transaction never finished executing"),
+        BatchStatus::Unknown => panic!("Unknown error"),
+    }
 }
 
-fn integration_test(func: impl FnOnce() + Send + 'static) {
-    let mut test = DockerClient::new();
-    test.run(|client| async move {
+fn integration_test(func: impl FnOnce(PortConfig) + Send + 'static) {
+    let test = DockerClient::new();
+    let ports = PortConfig {
+        validator_component: test.validator_component_port,
+        validator_endpoint: test.validator_endpoint_port,
+        rest_api: test.rest_api_port,
+        gateway: test.gateway_port,
+    };
+    test.run(|_client| async move {
         let binary_path = env!("CARGO_BIN_EXE_ccprocessor-rust");
         let mut sub = std::process::Command::new(binary_path)
-            .arg("-vvv")
+            .arg("-v")
+            .arg("-E")
+            .arg(&format!("tcp://localhost:{}", ports.validator_component))
+            .arg("-G")
+            .arg(&format!("tcp://localhost:{}", ports.gateway))
+            .stdout(std::process::Stdio::null())
             .spawn()
             .expect("Failed to spawn ccprocessor-rust");
 
         let stop = Arc::new(AtomicBool::new(false));
         let stop_thread = stop.clone();
-        let thread = std::thread::spawn(move || {
+        let _thread = std::thread::spawn(move || {
             let stop = stop_thread;
             let context = zmq::Context::new();
             let gateway_sock = context.socket(zmq::REP).unwrap();
             gateway_sock.set_rcvtimeo(1000).unwrap();
             gateway_sock.set_sndtimeo(1000).unwrap();
-            gateway_sock.bind("tcp://0.0.0.0:55555").unwrap();
+            gateway_sock
+                .bind(&format!("tcp://0.0.0.0:{}", ports.gateway))
+                .unwrap();
             while !stop.load(std::sync::atomic::Ordering::SeqCst) {
                 // if let gateway_sock.recv(msg, flags)
                 while let Ok(Ok(req)) = gateway_sock.recv_string(0) {
-                    log::warn!("Gateway got request: {}", req);
+                    log::debug!("Gateway got request: {}", req);
                     gateway_sock.send("good", 0).unwrap();
                 }
             }
-            log::warn!("Gateway stopping");
+            log::info!("Gateway stopping");
         });
 
-        func();
+        func(ports);
 
         stop.store(true, std::sync::atomic::Ordering::SeqCst);
         sub.kill().unwrap();
     });
 }
 
+fn setup_logs() {
+    static LOGS: Once = Once::new();
+    LOGS.call_once(|| {
+        ccprocessor_rust::setup_logs(1).unwrap();
+    });
+}
+
 #[test]
 fn foo() {
-    ccprocessor_rust::setup_logs(2).unwrap();
-    integration_test(|| {
-        let my_sighash = SigHash::from("my_sighash");
+    setup_logs();
+    integration_test(|ports| {
+        let _my_sighash = SigHash::from("my_sighash");
 
         let command = CollectCoins {
             amount: 1000000000.into(),
             eth_address: "asdfasdf".into(),
             blockchain_tx_id: "unused_if_hacked".into(),
         };
-        println!("cool kids only");
-        assert!(true == true);
+        execute_success(command, ports);
+        // std::thread::sleep(Duration::from_secs(15));
+    });
+}
+#[test]
+fn bar() {
+    setup_logs();
+    integration_test(|ports| {
+        let _my_sighash = SigHash::from("my_sighash");
 
-        println!("Executing failure");
-        execute_success(command);
-        std::thread::sleep(Duration::from_secs(15));
+        let command = CollectCoins {
+            amount: (-1).into(),
+            eth_address: "asdfasdf".into(),
+            blockchain_tx_id: "unused_if_hacked".into(),
+        };
+        execute_failure(command, "Expecting a positive value", ports);
+        // std::thread::sleep(Duration::from_secs(15));
     });
 }
