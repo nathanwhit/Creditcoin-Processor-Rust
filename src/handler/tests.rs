@@ -1,16 +1,21 @@
-#![cfg(all(test, feature = "mock"))]
+#![cfg(test)]
 #![allow(non_snake_case, non_upper_case_globals)]
 
+mod execution;
+#[cfg(feature = "mock")]
 pub mod mocked;
 
+use crate::test_utils::*;
 use mocked::{MockSettings, MockTransactionContext};
 use sawtooth_sdk::processor::handler::ApplyError;
 use sawtooth_sdk::processor::TransactionProcessor;
 use sawtooth_sdk::signing::secp256k1::Secp256k1PrivateKey;
 use sawtooth_sdk::signing::{create_context, Context, CryptoFactory};
-use serde_cbor::Value;
+use serde::Serialize;
+use serde_cbor::{value, Value};
 
 use std::collections::BTreeMap;
+use std::convert::TryFrom;
 use std::fs::File;
 use std::io::Read;
 use std::sync::Once;
@@ -35,7 +40,7 @@ use crate::ext::{IntegerExt, MessageExt};
 use crate::handler::constants::*;
 use crate::handler::types::{CCApplyError, SigHash};
 use crate::handler::types::{Guid, WalletId};
-use crate::handler::utils::{self, calc_interest};
+use crate::handler::utils::{calc_interest, sha512_id};
 use crate::{protos, string};
 
 use super::context::mocked::MockHandlerContext;
@@ -54,7 +59,7 @@ use super::LockDealOrder;
 use super::RegisterAddress;
 use super::RegisterTransfer;
 use super::SendFunds;
-use super::{CCTransaction, CCTransactionHandler, Housekeeping};
+use super::{CCCommand, CCTransaction, CCTransactionHandler, Housekeeping};
 
 use once_cell::sync::Lazy;
 
@@ -87,16 +92,14 @@ fn wallet_with(balance: Option<impl Into<Integer> + Clone>) -> Option<Vec<u8>> {
 macro_rules! expect {
     ($id: ident, $fun: ident where $c: expr, returning $ret: expr, $count: literal times) => {
 
-        if cfg!(not(all(test, feature = "integration-testing"))) {
-            paste::paste! {
-                    #[allow(unused_variables)]
-                    $id.[<expect_ $fun>]()
-                    .times($count)
-                    .withf($c)
-                    .return_once($ret)
-                };
-        } else {
-        }
+        paste::paste! {
+                #[allow(unused_variables)]
+                $id.[<expect_ $fun>]()
+                .times($count)
+                .withf($c)
+                .return_once($ret)
+            };
+
     };
     ($id: ident, $fun: ident where $c: expr, returning $ret: expr) => {
         expect!($id, $fun where $c, returning $ret, 1 times)
@@ -207,252 +210,8 @@ static PROCESSED_BLOCK_IDX: Lazy<String> = Lazy::new(|| {
 });
 
 // ----- COMMAND DESERIALIZATION TESTS -----
-use super::CCCommand;
-use serde::Serialize;
-use serde_cbor::value;
-use std::convert::TryFrom;
-
-macro_rules! command {
-    ($num: ident $(,)? $($param: ident),*) => {
-        paste::paste! {
-            #[derive(Serialize, PartialEq, Clone)]
-            struct [<$num ArgCommand>] {
-                v: String,
-                $(
-                    [<$param:lower>] : String
-                ),*
-            }
-
-            impl [<$num ArgCommand>] {
-                fn new<$($param : serde::Serialize + std::fmt::Display),*>(v: impl Into<String>, $([<$param:lower>]: $param),*) -> Self {
-                    Self {
-                        v: v.into(),
-                        $([<$param:lower>] : [<$param:lower>].to_string()),*
-                    }
-                }
-            }
-
-            impl<$($param : serde::Serialize + std::fmt::Display),* > From<(&str, $($param),*)> for [<$num ArgCommand>] {
-                fn from((v, $([<$param:lower>]),*): (&str, $($param),*)) -> Self {
-                    Self {
-                        v: v.into(),
-                        $([<$param:lower>] : [<$param:lower>].to_string()),*
-                    }
-                }
-            }
-        }
-    };
-}
-
-command!(Zero);
-command!(One, P1);
-command!(Two, P1, P2);
-command!(Three, P1, P2, P3);
-command!(Four, P1, P2, P3, P4);
-command!(Five, P1, P2, P3, P4, P5);
-command!(Six, P1, P2, P3, P4, P5, P6);
-command!(Seven, P1, P2, P3, P4, P5, P6, P7);
-command!(Eight, P1, P2, P3, P4, P5, P6, P7, P8);
-command!(Nine, P1, P2, P3, P4, P5, P6, P7, P8, P9);
-command!(Ten, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10);
-command!(Eleven, P1, P2, P3, P4, P5, P6, P7, P8, P9, P10, P11);
-
-trait ToGenericCommand {
-    type GenericCommand: Serialize;
-    fn to_generic_command(self) -> Self::GenericCommand;
-}
-
-impl ToGenericCommand for SendFunds {
-    type GenericCommand = TwoArgCommand;
-    fn to_generic_command(self) -> <Self as ToGenericCommand>::GenericCommand {
-        let SendFunds { amount, sighash } = self;
-        TwoArgCommand::new("SendFunds", amount.to_string(), sighash.0)
-    }
-}
-
-impl ToGenericCommand for RegisterAddress {
-    type GenericCommand = ThreeArgCommand;
-    fn to_generic_command(self) -> ThreeArgCommand {
-        let RegisterAddress {
-            blockchain,
-            address,
-            network,
-        } = self;
-        ThreeArgCommand::new("RegisterAddress", blockchain, address, network)
-    }
-}
-impl ToGenericCommand for RegisterTransfer {
-    type GenericCommand = ThreeArgCommand;
-    fn to_generic_command(self) -> ThreeArgCommand {
-        let RegisterTransfer {
-            gain,
-            order_id,
-            blockchain_tx_id,
-        } = self;
-        ThreeArgCommand::new(
-            "RegisterTransfer",
-            gain.to_string(),
-            order_id,
-            blockchain_tx_id,
-        )
-    }
-}
-impl ToGenericCommand for AddAskOrder {
-    type GenericCommand = SixArgCommand;
-    fn to_generic_command(self) -> SixArgCommand {
-        let AddAskOrder {
-            address_id,
-            amount_str,
-            interest,
-            maturity,
-            fee_str,
-            expiration,
-        } = self;
-        SixArgCommand::new(
-            "AddAskOrder",
-            address_id,
-            amount_str,
-            interest,
-            maturity,
-            fee_str,
-            expiration,
-        )
-    }
-}
-impl ToGenericCommand for AddBidOrder {
-    type GenericCommand = SixArgCommand;
-    fn to_generic_command(self) -> SixArgCommand {
-        let AddBidOrder {
-            address_id,
-            amount_str,
-            interest,
-            maturity,
-            fee_str,
-            expiration,
-        } = self;
-        SixArgCommand::new(
-            "AddBidOrder",
-            address_id,
-            amount_str,
-            interest,
-            maturity,
-            fee_str,
-            expiration,
-        )
-    }
-}
-impl ToGenericCommand for AddOffer {
-    type GenericCommand = ThreeArgCommand;
-    fn to_generic_command(self) -> ThreeArgCommand {
-        let AddOffer {
-            ask_order_id,
-            bid_order_id,
-            expiration,
-        } = self;
-        ThreeArgCommand::new("AddOffer", ask_order_id, bid_order_id, expiration)
-    }
-}
-impl ToGenericCommand for AddDealOrder {
-    type GenericCommand = TwoArgCommand;
-    fn to_generic_command(self) -> TwoArgCommand {
-        let AddDealOrder {
-            offer_id,
-            expiration,
-        } = self;
-        TwoArgCommand::new("AddDealOrder", offer_id, expiration)
-    }
-}
-impl ToGenericCommand for CompleteDealOrder {
-    type GenericCommand = TwoArgCommand;
-    fn to_generic_command(self) -> TwoArgCommand {
-        let CompleteDealOrder {
-            deal_order_id,
-            transfer_id,
-        } = self;
-        TwoArgCommand::new("CompleteDealOrder", deal_order_id, transfer_id)
-    }
-}
-impl ToGenericCommand for LockDealOrder {
-    type GenericCommand = OneArgCommand;
-    fn to_generic_command(self) -> OneArgCommand {
-        let LockDealOrder { deal_order_id } = self;
-        OneArgCommand::new("LockDealOrder", deal_order_id)
-    }
-}
-impl ToGenericCommand for CloseDealOrder {
-    type GenericCommand = TwoArgCommand;
-    fn to_generic_command(self) -> TwoArgCommand {
-        let CloseDealOrder {
-            deal_order_id,
-            transfer_id,
-        } = self;
-        TwoArgCommand::new("CloseDealOrder", deal_order_id, transfer_id)
-    }
-}
-impl ToGenericCommand for Exempt {
-    type GenericCommand = TwoArgCommand;
-    fn to_generic_command(self) -> TwoArgCommand {
-        let Exempt {
-            deal_order_id,
-            transfer_id,
-        } = self;
-        TwoArgCommand::new("Exempt", deal_order_id, transfer_id)
-    }
-}
-impl ToGenericCommand for AddRepaymentOrder {
-    type GenericCommand = FourArgCommand;
-    fn to_generic_command(self) -> FourArgCommand {
-        let AddRepaymentOrder {
-            deal_order_id,
-            address_id,
-            amount_str,
-            expiration,
-        } = self;
-        FourArgCommand::new(
-            "AddRepaymentOrder",
-            deal_order_id,
-            address_id,
-            amount_str,
-            expiration,
-        )
-    }
-}
-impl ToGenericCommand for CompleteRepaymentOrder {
-    type GenericCommand = OneArgCommand;
-    fn to_generic_command(self) -> OneArgCommand {
-        let CompleteRepaymentOrder { repayment_order_id } = self;
-        OneArgCommand::new("CompleteRepaymentOrder", repayment_order_id)
-    }
-}
-impl ToGenericCommand for CloseRepaymentOrder {
-    type GenericCommand = TwoArgCommand;
-    fn to_generic_command(self) -> TwoArgCommand {
-        let CloseRepaymentOrder {
-            repayment_order_id,
-            transfer_id,
-        } = self;
-        TwoArgCommand::new("CloseRepaymentOrder", repayment_order_id, transfer_id)
-    }
-}
-impl ToGenericCommand for CollectCoins {
-    type GenericCommand = ThreeArgCommand;
-    fn to_generic_command(self) -> ThreeArgCommand {
-        let CollectCoins {
-            eth_address,
-            amount,
-            blockchain_tx_id,
-        } = self;
-        ThreeArgCommand::new(
-            "CollectCoins",
-            eth_address,
-            amount.to_string(),
-            blockchain_tx_id,
-        )
-    }
-}
 
 #[track_caller]
-#[cfg(not(all(test, feature = "integration-testing")))]
 fn deserialize_success(value: impl Serialize, expected: impl Into<CCCommand>) {
     let value = value::to_value(value).unwrap();
     let expected = expected.into();
@@ -460,11 +219,7 @@ fn deserialize_success(value: impl Serialize, expected: impl Into<CCCommand>) {
     assert_eq!(result, expected);
 }
 
-#[cfg(all(test, feature = "integration-testing"))]
-fn deserialize_success(_value: impl Serialize, _expected: impl Into<CCCommand>) {}
-
 #[track_caller]
-#[cfg(not(all(test, feature = "integration-testing")))]
 fn deserialize_failure(value: impl Serialize, expected_err: &str) {
     let value = value::to_value(value).unwrap();
     let result = CCCommand::try_from(value).unwrap_err();
@@ -475,10 +230,6 @@ fn deserialize_failure(value: impl Serialize, expected_err: &str) {
         _ => panic!("Expected an InvalidTransaction error"),
     };
 }
-
-#[cfg(all(test, feature = "integration-testing"))]
-fn deserialize_failure(_value: impl Serialize, _expected_err: &str) {}
-
 // SendFunds
 
 #[test]
@@ -1798,8 +1549,7 @@ fn make_fee(guid: &Guid, sighash: &SigHash, block: Option<u64>) -> (String, Vec<
 }
 
 fn expect_set_state_entries(tx_ctx: &mut MockTransactionContext, entries: Vec<(String, Vec<u8>)>) {
-    if cfg!(not(all(test, feature = "integration-testing"))) {
-        expect!(tx_ctx, set_state_entries where {
+    expect!(tx_ctx, set_state_entries where {
             let entries = entries.into_iter().sorted().collect_vec();
             move |e| {
                 let s = itertools::sorted(e.clone()).collect_vec();
@@ -1816,37 +1566,34 @@ fn expect_set_state_entries(tx_ctx: &mut MockTransactionContext, entries: Vec<(S
                 true
             }
         }, returning |_| Ok(()));
-    }
 }
 
 fn expect_delete_state_entries(tx_ctx: &mut MockTransactionContext, entries: Vec<String>) {
-    if cfg!(not(all(test, feature = "integration-testing"))) {
-        tx_ctx
-            .expect_delete_state_entries()
-            .once()
-            .withf({
-                let entries = entries.into_iter().sorted().collect_vec();
-                move |e| {
-                    let s = itertools::sorted(e.clone()).collect_vec();
-                    for (entry, &other) in entries.iter().zip(&s) {
-                        if entry != other {
-                            println!("Not equal! Expected {:?} -- Found {:?}", entry, other);
-                            return false;
-                        }
-                    }
-                    if entries.len() != s.len() {
-                        println!(
-                            "Unequal lengths! Expected {:?} -- Found {:?}",
-                            entries.len(),
-                            s.len()
-                        );
+    tx_ctx
+        .expect_delete_state_entries()
+        .once()
+        .withf({
+            let entries = entries.into_iter().sorted().collect_vec();
+            move |e| {
+                let s = itertools::sorted(e.clone()).collect_vec();
+                for (entry, &other) in entries.iter().zip(&s) {
+                    if entry != other {
+                        println!("Not equal! Expected {:?} -- Found {:?}", entry, other);
                         return false;
                     }
-                    true
                 }
-            })
-            .returning(|_| Ok(Vec::new()));
-    }
+                if entries.len() != s.len() {
+                    println!(
+                        "Unequal lengths! Expected {:?} -- Found {:?}",
+                        entries.len(),
+                        s.len()
+                    );
+                    return false;
+                }
+                true
+            }
+        })
+        .returning(|_| Ok(Vec::new()));
 }
 
 // ----- COMMAND EXECUTION TESTS -----
@@ -1870,16 +1617,10 @@ fn execute_success(
     tx_ctx: &MockTransactionContext,
     ctx: &mut MockHandlerContext,
 ) {
-    if cfg!(not(all(test, feature = "integration-testing"))) {
-        command.execute(request, tx_ctx, ctx).unwrap();
-    } else {
-        // TODO: send to REST API and expect failure!
-        println!("DEBUG: expected success");
-    }
+    command.execute(request, tx_ctx, ctx).unwrap();
 }
 
 #[track_caller]
-#[cfg(not(all(test, feature = "integration-testing")))]
 fn execute_failure(
     command: impl CCTransaction + ToGenericCommand,
     request: &TpProcessRequest,
@@ -1894,137 +1635,6 @@ fn execute_failure(
         }
         _ => panic!("Expected an InvalidTransaction error"),
     };
-}
-
-fn signer_from_file(profile: &str) -> Signer {
-    let mut private_key_file_name = dirs::home_dir().unwrap();
-    private_key_file_name.push(format!(".sawtooth/keys/{}.priv", profile));
-
-    // TODO: read keys via command line args
-    let mut private_key_file = File::open(private_key_file_name).unwrap();
-    let mut private_key_hex = String::new();
-    private_key_file
-        .read_to_string(&mut private_key_hex)
-        .unwrap();
-
-    let private_key = Secp256k1PrivateKey::from_hex(private_key_hex.trim()).unwrap();
-    let signing_context = create_context("secp256k1").unwrap();
-    Signer::new_boxed(signing_context, Box::new(private_key))
-}
-
-#[track_caller]
-#[cfg(all(test, feature = "integration-testing"))]
-fn execute_failure(
-    command: impl CCTransaction + ToGenericCommand,
-    _request: &TpProcessRequest,
-    _tx_ctx: &MockTransactionContext,
-    _ctx: &mut MockHandlerContext,
-    expected_err: &str,
-) {
-    use std::time::Duration;
-
-    let command = command.to_generic_command();
-    let payload_bytes = serde_cbor::to_vec(&command).unwrap();
-    let signer = signer_from_file("my_key");
-
-    // build transaction
-    let mut txn_header = TransactionHeader::new();
-    txn_header.set_family_name(CCTransactionHandler::family_name());
-
-    let family_vers = CCTransactionHandler::family_versions();
-    let last_version = family_vers.last().unwrap();
-    txn_header.set_family_version(last_version.to_string());
-
-    // Generate a random 128 bit number to use as a nonce
-    let mut nonce = [0u8; 16];
-    thread_rng()
-        .try_fill(&mut nonce[..])
-        .expect("Error generating random nonce");
-    txn_header.set_nonce(to_hex_string(&nonce.to_vec()));
-
-    let input_vec = CCTransactionHandler::namespaces();
-    let output_vec = input_vec.clone();
-
-    txn_header.set_inputs(RepeatedField::from_vec(input_vec));
-    txn_header.set_outputs(RepeatedField::from_vec(output_vec));
-    txn_header.set_signer_public_key(
-        signer
-            .get_public_key()
-            .expect("Error retrieving Public Key")
-            .as_hex(),
-    );
-    txn_header.set_batcher_public_key(
-        signer
-            .get_public_key()
-            .expect("Error retrieving Public Key")
-            .as_hex(),
-    );
-
-    txn_header.set_payload_sha512(to_hex_string(&sha512(&payload_bytes).to_vec()));
-    let txn_header_bytes = txn_header
-        .write_to_bytes()
-        .expect("Error converting transaction header to bytes");
-
-    // sign transaction
-    let signature = signer
-        .sign(&txn_header_bytes)
-        .expect("Error signing the transaction header");
-
-    let mut txn = Transaction::new();
-    txn.set_header(txn_header_bytes.to_vec());
-    txn.set_header_signature(signature);
-    txn.set_payload(payload_bytes);
-
-    // batch header
-    let mut batch_header = BatchHeader::new();
-
-    batch_header.set_signer_public_key(
-        signer
-            .get_public_key()
-            .expect("Error retrieving Public Key")
-            .as_hex(),
-    );
-
-    let transaction_ids = vec![txn.clone()]
-        .iter()
-        .map(|trans| String::from(trans.get_header_signature()))
-        .collect();
-
-    batch_header.set_transaction_ids(RepeatedField::from_vec(transaction_ids));
-
-    let batch_header_bytes = batch_header
-        .write_to_bytes()
-        .expect("Error converting batch header to bytes");
-
-    let signature = signer
-        .sign(&batch_header_bytes)
-        .expect("Error signing the batch header");
-
-    let mut batch = Batch::new();
-
-    batch.set_header(batch_header_bytes);
-    batch.set_header_signature(signature);
-    batch.set_transactions(RepeatedField::from_vec(vec![txn]));
-
-    let mut batch_list = BatchList::new();
-    batch_list.set_batches(RepeatedField::from_vec(vec![batch]));
-    let batch_list_bytes = batch_list
-        .write_to_bytes()
-        .expect("Error converting batch list to bytes");
-
-    // TODO: specify address via cli flags
-    let response = ureq::post("http://127.0.0.1:8008/batches")
-        .set("Content-Type", "application/octet-stream")
-        .timeout(Duration::from_secs(30))
-        .send_bytes(&batch_list_bytes)
-        .unwrap();
-
-    let body = response.into_string().unwrap();
-
-    println!("***** DEBUG, body={:?}", body);
-
-    // TODO: send to REST API and expect failure!
-    println!("DEBUG: expected failure {}", expected_err);
 }
 
 // --- SendFunds ---
@@ -2762,18 +2372,16 @@ fn expect_get_state_entry(
     ret: Option<impl Message + Default>,
     times: Option<usize>,
 ) {
-    if cfg!(not(all(test, feature = "integration-testing"))) {
-        let id = id.into();
-        let ret = ret.map(|m| m.to_bytes());
-        tx_ctx
-            .expect_get_state_entry()
-            .times(times.unwrap_or(1))
-            .withf(move |m| m == &id)
-            .return_once({
-                let ret = ret.clone();
-                |_| Ok(ret)
-            });
-    }
+    let id = id.into();
+    let ret = ret.map(|m| m.to_bytes());
+    tx_ctx
+        .expect_get_state_entry()
+        .times(times.unwrap_or(1))
+        .withf(move |m| m == &id)
+        .return_once({
+            let ret = ret.clone();
+            |_| Ok(ret)
+        });
 }
 
 // --- CompleteDealOrder ---
@@ -3604,7 +3212,7 @@ fn housekeeping_reward_in_chain() {
     let reward_amount = REWARD_AMOUNT.clone();
 
     for (idx, signer) in signers.clone().into_iter().enumerate() {
-        let wallet_id = WalletId::from(&SigHash(utils::sha512_id(signer.as_bytes())));
+        let wallet_id = WalletId::from(&SigHash(sha512_id(signer.as_bytes())));
 
         // the first signer has no wallet, the rest have an existing balance of `idx`
         let balance = if idx == 0 { None } else { Some(idx as u64) };
@@ -3693,7 +3301,7 @@ fn housekeeping_reward_fork() {
     let reward_amount = REWARD_AMOUNT.clone();
 
     for (idx, signer) in signers.clone().into_iter().enumerate() {
-        let wallet_id = WalletId::from(&SigHash(utils::sha512_id(signer.as_bytes())));
+        let wallet_id = WalletId::from(&SigHash(sha512_id(signer.as_bytes())));
         let wallet_id_ = wallet_id.clone();
 
         // the first signer has no wallet, the rest have an existing balance of `idx`

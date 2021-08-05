@@ -32,6 +32,8 @@ sawtooth-sdk = { package = "sawtooth-sdk-creditcoin", git = "https://github.com/
 serde_cbor = "0.11.1"
 sha2 = "0.10.0"
 zmq = "0.9.2"
+paste = "1.0.5"
+serde = { version = "1.0.126", features = ["derive"] }
 
 [build-dependencies]
 anyhow = "1.0.51"
@@ -39,13 +41,20 @@ glob = "0.3.0"
 prost-build = "0.9.0"
 
 [dev-dependencies]
+bollard = "0.11.0"
 dirs = { package = "dirs-next", version = "2.0.0" }
 enclose = "1.1.8"
+futures-lite = "1.12.0"
 itertools = "0.10.1"
+maplit = "1.0.2"
 mockall = "0.10"
-paste = "1.0.5"
+pollster = "0.2.4"
 protobuf = "2.24.1"
-serde = { version = "1.0.126", features = ["derive"] }
+serde_json = "1.0.66"
+test-env-log = { version = "0.2.7", default-features = false, features = [
+    "log",
+] }
+tokio = { version = "1.9.0", features = ["rt", "macros", "net"] }
 ureq = "2.1.1"
 
 [features]
