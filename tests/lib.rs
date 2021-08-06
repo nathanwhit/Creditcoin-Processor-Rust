@@ -12,9 +12,11 @@ use ccprocessor_rust::test_utils::*;
 use derive_more::{Deref, DerefMut};
 use futures_lite::{Future, StreamExt};
 
+use itertools::Itertools;
 use maplit::hashmap;
 use openssl::sha::sha512;
 use protobuf::{Message, RepeatedField};
+use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use sawtooth_sdk::messages::batch::{Batch, BatchHeader, BatchList};
 use sawtooth_sdk::messages::transaction::Transaction;
@@ -24,14 +26,15 @@ use sawtooth_sdk::{
     signing::{create_context, secp256k1::Secp256k1PrivateKey, Signer},
 };
 use serde::Deserialize;
+use std::convert::TryInto;
 use std::net::Ipv4Addr;
 
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Once};
 use std::time::{Duration, Instant};
 use std::{fs::File, io::Read};
 use tokio::runtime::Runtime;
-use ureq::Response;
 // use test_env_log::test;
 
 trait Ext {
@@ -75,7 +78,6 @@ pub async fn ensure_image_present(docker: &Docker, image: &str, tag: &str) -> Re
 }
 
 pub fn random_name(base: &str) -> String {
-    use rand::distributions::Alphanumeric;
     use std::iter;
     let mut rng = thread_rng();
     let chars: String = iter::repeat(())
@@ -417,9 +419,20 @@ impl BatchStatus {
     }
 }
 
+type Nonce = [u8; 16];
+
+fn make_nonce() -> Nonce {
+    let nonce = thread_rng()
+        .sample_iter(Alphanumeric)
+        .take(16)
+        .collect_vec();
+    nonce[..16].try_into().unwrap()
+}
+
 fn send_command(
     command: impl CCTransaction + ToGenericCommand,
     ports: PortConfig,
+    nonce: Option<Nonce>,
 ) -> BatchSendResponse {
     let command = command.to_generic_command();
     let payload_bytes = serde_cbor::to_vec(&command).unwrap();
@@ -434,11 +447,10 @@ fn send_command(
     txn_header.set_family_version(last_version.to_string());
 
     // Generate a random 128 bit number to use as a nonce
-    let mut nonce = [0u8; 16];
-    thread_rng()
-        .try_fill(&mut nonce[..])
-        .expect("Error generating random nonce");
-    txn_header.set_nonce(to_hex_string(&nonce.to_vec()));
+
+    txn_header.set_nonce(to_hex_string(
+        &nonce.unwrap_or_else(|| make_nonce()).to_vec(),
+    ));
 
     let input_vec = CCTransactionHandler::namespaces();
     let output_vec = input_vec.clone();
@@ -548,9 +560,12 @@ fn complete_batch(link: &str, timeout: Option<Duration>) -> Option<BatchStatus> 
     }
 }
 
-#[track_caller]
-fn execute_success(command: impl CCTransaction + ToGenericCommand, ports: PortConfig) {
-    let response = send_command(command, ports);
+fn execute_success(
+    command: impl CCTransaction + ToGenericCommand,
+    ports: PortConfig,
+    nonce: Option<Nonce>,
+) {
+    let response = send_command(command, ports, nonce);
 
     let status = complete_batch(&response.link, None).unwrap();
     log::warn!("status = {:?}", status);
@@ -558,13 +573,13 @@ fn execute_success(command: impl CCTransaction + ToGenericCommand, ports: PortCo
     assert!(matches!(status, BatchStatus::Committed));
 }
 
-#[track_caller]
 fn execute_failure(
     command: impl CCTransaction + ToGenericCommand,
     expected_err: &str,
     ports: PortConfig,
+    nonce: Option<Nonce>,
 ) {
-    let response = send_command(command, ports);
+    let response = send_command(command, ports, nonce);
 
     let status = complete_batch(&response.link, None).unwrap();
 
@@ -579,6 +594,46 @@ fn execute_failure(
         BatchStatus::Pending => panic!("Transaction never finished executing"),
         BatchStatus::Unknown => panic!("Unknown error"),
     }
+}
+
+#[derive(Deserialize, Debug, Clone)]
+struct Paging {
+    limit: Option<u64>,
+    start: Option<String>,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+struct StateEntry {
+    address: String,
+    data: String,
+}
+
+#[derive(Deserialize, Debug, Clone)]
+struct RawStateResponse {
+    data: Vec<StateEntry>,
+    head: String,
+    link: String,
+    paging: Paging,
+}
+
+fn expect_set_state_entries(ports: PortConfig, entries: Vec<(String, Vec<u8>)>) -> Result<()> {
+    let url = format!("http://localhost:{}/state", ports.rest_api);
+
+    for (address, value) in entries {
+        let response = ureq::get(&url).query("address", &address).call()?;
+        let response: RawStateResponse = serde_json::from_reader(response.into_reader())?;
+        assert_eq!(response.data.len(), 1);
+        let entry = &response.data[0];
+        assert_eq!(entry.address, address);
+        let data_decoded = base64::decode(&entry.data)?;
+
+        assert_eq!(data_decoded, value);
+    }
+    Ok(())
+}
+
+fn expect_set_state_entry(ports: PortConfig, address: String, value: Vec<u8>) -> Result<()> {
+    expect_set_state_entries(ports, vec![(address, value)])
 }
 
 fn integration_test(func: impl FnOnce(PortConfig) + Send + 'static) {
@@ -622,10 +677,15 @@ fn integration_test(func: impl FnOnce(PortConfig) + Send + 'static) {
             log::info!("Gateway stopping");
         });
 
-        func(ports);
+        let res = catch_unwind(AssertUnwindSafe(|| func(ports)));
 
+        log::warn!("Killing");
         stop.store(true, std::sync::atomic::Ordering::SeqCst);
         sub.kill().unwrap();
+        match res {
+            Ok(res) => res,
+            Err(e) => std::panic::resume_unwind(e),
+        }
     });
 }
 
@@ -647,7 +707,7 @@ fn foo() {
             eth_address: "asdfasdf".into(),
             blockchain_tx_id: "unused_if_hacked".into(),
         };
-        execute_success(command, ports);
+        execute_success(command, ports, None);
         // std::thread::sleep(Duration::from_secs(15));
     });
 }
@@ -662,7 +722,7 @@ fn bar() {
             eth_address: "asdfasdf".into(),
             blockchain_tx_id: "unused_if_hacked".into(),
         };
-        execute_failure(command, "Expecting a positive value", ports);
+        execute_failure(command, "Expecting a positive value", ports, None);
         // std::thread::sleep(Duration::from_secs(15));
     });
 }

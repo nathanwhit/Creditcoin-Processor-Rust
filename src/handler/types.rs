@@ -1,6 +1,6 @@
 use anyhow::Context;
 use derive_more::{Add, AddAssign, Display, Div, Mul, Sub, SubAssign};
-use std::convert::TryFrom;
+use std::convert::{TryFrom, TryInto};
 use std::fmt;
 use std::ops::{Add, Sub};
 use std::ops::{AddAssign, Deref};
@@ -127,6 +127,23 @@ pub struct Guid(pub String);
 impl From<&str> for Guid {
     fn from(s: &str) -> Self {
         Guid(s.to_string())
+    }
+}
+
+#[cfg(all(feature = "integration-testing"))]
+impl From<Guid> for [u8; 16] {
+    fn from(guid: Guid) -> Self {
+        assert_eq!(guid.as_str().len(), 16);
+        guid.as_str().as_bytes().try_into().unwrap()
+    }
+}
+
+#[cfg(all(feature = "integration-testing"))]
+impl From<[u8; 16]> for Guid {
+    fn from(arr: [u8; 16]) -> Self {
+        let arr = arr.to_vec();
+        let s = String::from_utf8(arr).unwrap();
+        Guid(s)
     }
 }
 

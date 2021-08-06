@@ -134,6 +134,7 @@ name = "ccprocessor-rust"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "base64",
  "bollard",
  "chrono",
  "clap",
