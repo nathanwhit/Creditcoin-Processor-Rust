@@ -1,41 +1,47 @@
-#![cfg(feature = "integration-testing")]
-use anyhow::Result;
-use bollard::container::{Config, CreateContainerOptions, RemoveContainerOptions};
-use bollard::image::CreateImageOptions;
-use bollard::models::{HostConfig, PortBinding};
-use bollard::network::CreateNetworkOptions;
-use bollard::Docker;
-use ccprocessor_rust::handler::types::SigHash;
-use ccprocessor_rust::handler::utils::to_hex_string;
-use ccprocessor_rust::handler::{CCTransaction, CCTransactionHandler, CollectCoins};
-use ccprocessor_rust::test_utils::*;
-use derive_more::{Deref, DerefMut};
-use futures_lite::{Future, StreamExt};
+#![allow(dead_code, unused_imports)]
 
-use itertools::Itertools;
-use maplit::hashmap;
-use openssl::sha::sha512;
-use protobuf::{Message, RepeatedField};
-use rand::distributions::Alphanumeric;
-use rand::{thread_rng, Rng};
-use sawtooth_sdk::messages::batch::{Batch, BatchHeader, BatchList};
-use sawtooth_sdk::messages::transaction::Transaction;
+pub use anyhow::Result;
+pub use bollard::container::{Config, CreateContainerOptions, RemoveContainerOptions};
+pub use bollard::image::CreateImageOptions;
+pub use bollard::models::{HostConfig, PortBinding};
+pub use bollard::network::CreateNetworkOptions;
+pub use bollard::Docker;
+pub use ccprocessor_rust::ext::MessageExt;
+pub use ccprocessor_rust::handler::constants::*;
+pub use ccprocessor_rust::handler::types::*;
+pub use ccprocessor_rust::handler::utils::to_hex_string;
+use ccprocessor_rust::handler::RegisterAddress;
+pub use ccprocessor_rust::handler::{CCTransaction, CCTransactionHandler, CollectCoins};
+pub use ccprocessor_rust::{string, test_utils::*};
+pub use derive_more::{Deref, DerefMut};
+pub use futures_lite::{Future, StreamExt};
 
-use sawtooth_sdk::{
+pub use itertools::Itertools;
+pub use maplit::hashmap;
+pub use openssl::sha::sha512;
+pub use protobuf::{Message, RepeatedField};
+pub use rand::distributions::Alphanumeric;
+pub use rand::{thread_rng, Rng};
+pub use sawtooth_sdk::messages::batch::{Batch, BatchHeader, BatchList};
+pub use sawtooth_sdk::messages::transaction::Transaction;
+
+pub use sawtooth_sdk::signing::secp256k1::Secp256k1PublicKey;
+pub use sawtooth_sdk::{
     messages::transaction::TransactionHeader,
     signing::{create_context, secp256k1::Secp256k1PrivateKey, Signer},
 };
-use serde::Deserialize;
-use std::convert::TryInto;
-use std::net::Ipv4Addr;
+pub use serde::Deserialize;
+pub use std::convert::TryInto;
+pub use std::net::Ipv4Addr;
 
-use std::panic::{catch_unwind, AssertUnwindSafe};
-use std::sync::atomic::AtomicBool;
-use std::sync::{Arc, Once};
-use std::time::{Duration, Instant};
-use std::{fs::File, io::Read};
-use tokio::runtime::Runtime;
-// use test_env_log::test;
+pub use assert_matches::assert_matches;
+pub use sawtooth_sdk::messages::processor::TpProcessRequest;
+pub use std::panic::{catch_unwind, AssertUnwindSafe};
+pub use std::sync::atomic::AtomicBool;
+pub use std::sync::{Arc, Once};
+pub use std::time::{Duration, Instant};
+pub use std::{fs::File, io::Read};
+pub use tokio::runtime::Runtime;
 
 trait Ext {
     fn into_strings(self) -> Vec<String>;
@@ -102,7 +108,7 @@ pub struct DockerClient {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct PortConfig {
+pub struct PortConfig {
     validator_component: u16,
     validator_endpoint: u16,
     rest_api: u16,
@@ -349,7 +355,7 @@ pub async fn setup(docker: &mut DockerClient) -> Result<()> {
     Ok(())
 }
 
-fn signer_from_file(profile: &str) -> Signer {
+pub fn signer_from_file(profile: &str) -> Signer {
     let mut private_key_file_name = dirs::home_dir().unwrap();
     private_key_file_name.push(format!(".sawtooth/keys/{}.priv", profile));
 
@@ -366,25 +372,25 @@ fn signer_from_file(profile: &str) -> Signer {
 }
 
 #[derive(Deserialize, Clone, Debug)]
-struct BatchSendResponse {
-    link: String,
+pub struct BatchSendResponse {
+    pub link: String,
 }
 
 #[derive(Deserialize, Clone, Debug)]
-struct RawBatchStatusResponse {
+pub struct RawBatchStatusResponse {
     data: Vec<RawBatchStatus>,
     link: String,
 }
 
 #[derive(Deserialize, Clone, Debug)]
-struct RawBatchStatus {
+pub struct RawBatchStatus {
     id: String,
     invalid_transactions: Vec<FailedTransaction>,
     status: String,
 }
 
 #[derive(Clone, Debug)]
-enum BatchStatus {
+pub enum BatchStatus {
     Committed,
     Invalid(Vec<FailedTransaction>),
     Pending,
@@ -392,7 +398,7 @@ enum BatchStatus {
 }
 
 #[derive(Deserialize, Clone, Debug)]
-struct FailedTransaction {
+pub struct FailedTransaction {
     id: String,
     message: String,
 }
@@ -419,25 +425,14 @@ impl BatchStatus {
     }
 }
 
-type Nonce = [u8; 16];
-
-fn make_nonce() -> Nonce {
-    let nonce = thread_rng()
-        .sample_iter(Alphanumeric)
-        .take(16)
-        .collect_vec();
-    nonce[..16].try_into().unwrap()
-}
-
-fn send_command(
+pub fn send_command_with_signer(
     command: impl CCTransaction + ToGenericCommand,
     ports: PortConfig,
     nonce: Option<Nonce>,
+    signer: &Signer,
 ) -> BatchSendResponse {
     let command = command.to_generic_command();
     let payload_bytes = serde_cbor::to_vec(&command).unwrap();
-    let signer = signer_from_file("my_key");
-
     // build transaction
     let mut txn_header = TransactionHeader::new();
     txn_header.set_family_name(CCTransactionHandler::family_name());
@@ -448,11 +443,12 @@ fn send_command(
 
     // Generate a random 128 bit number to use as a nonce
 
-    txn_header.set_nonce(to_hex_string(
-        &nonce.unwrap_or_else(|| make_nonce()).to_vec(),
-    ));
+    let nonce = to_hex_string(&nonce.unwrap_or_else(|| make_nonce()).to_vec());
+    log::warn!("Nonce = {:?}", nonce);
+    txn_header.set_nonce(nonce);
 
     let input_vec = CCTransactionHandler::namespaces();
+    println!("{:?}", input_vec);
     let output_vec = input_vec.clone();
 
     txn_header.set_inputs(RepeatedField::from_vec(input_vec));
@@ -534,16 +530,32 @@ fn send_command(
     response
 }
 
-fn check_status(link: &str) -> BatchStatus {
+pub fn new_secret() -> String {
+    use libsecp256k1::SecretKey;
+    let mut rng = old_rand::thread_rng();
+    let secret = SecretKey::random(&mut rng);
+    format!("{:x}", secret)
+}
+
+pub fn send_command(
+    command: impl CCTransaction + ToGenericCommand,
+    ports: PortConfig,
+    nonce: Option<Nonce>,
+) -> BatchSendResponse {
+    let signer = signer_with_secret(&new_secret());
+    send_command_with_signer(command, ports, nonce, &signer)
+}
+
+pub fn check_status(link: &str) -> BatchStatus {
     let status = ureq::get(link).call().unwrap().into_string().unwrap();
     let response: RawBatchStatusResponse = serde_json::from_str(&status).unwrap();
     response.data[0].clone().into()
 }
 
-fn complete_batch(link: &str, timeout: Option<Duration>) -> Option<BatchStatus> {
+pub fn complete_batch(link: &str, timeout: Option<Duration>) -> Option<BatchStatus> {
     let mut status = check_status(&link);
     let start = Instant::now();
-    let timeout = timeout.unwrap_or(Duration::from_secs(15));
+    let timeout = timeout.unwrap_or(Duration::from_secs(60));
     let mut timed_out = false;
     while !status.is_complete() {
         if start.elapsed() > timeout {
@@ -560,26 +572,32 @@ fn complete_batch(link: &str, timeout: Option<Duration>) -> Option<BatchStatus> 
     }
 }
 
-fn execute_success(
+pub fn execute_success(
     command: impl CCTransaction + ToGenericCommand,
     ports: PortConfig,
     nonce: Option<Nonce>,
+    signer: &Signer,
 ) {
-    let response = send_command(command, ports, nonce);
+    let response = send_command_with_signer(command, ports, nonce, signer);
 
     let status = complete_batch(&response.link, None).unwrap();
     log::warn!("status = {:?}", status);
 
-    assert!(matches!(status, BatchStatus::Committed));
+    assert!(
+        matches!(status, BatchStatus::Committed),
+        "status was {:?}",
+        status
+    );
 }
 
-fn execute_failure(
+pub fn execute_failure(
     command: impl CCTransaction + ToGenericCommand,
     expected_err: &str,
     ports: PortConfig,
     nonce: Option<Nonce>,
+    signer: &Signer,
 ) {
-    let response = send_command(command, ports, nonce);
+    let response = send_command_with_signer(command, ports, nonce, signer);
 
     let status = complete_batch(&response.link, None).unwrap();
 
@@ -597,26 +615,37 @@ fn execute_failure(
 }
 
 #[derive(Deserialize, Debug, Clone)]
-struct Paging {
+pub struct Paging {
     limit: Option<u64>,
     start: Option<String>,
 }
 
 #[derive(Deserialize, Debug, Clone)]
-struct StateEntry {
+pub struct StateEntry {
     address: String,
     data: String,
 }
 
 #[derive(Deserialize, Debug, Clone)]
-struct RawStateResponse {
+pub struct RawStateResponse {
     data: Vec<StateEntry>,
     head: String,
     link: String,
     paging: Paging,
 }
 
-fn expect_set_state_entries(ports: PortConfig, entries: Vec<(String, Vec<u8>)>) -> Result<()> {
+pub fn expect_delete_state_entries(ports: PortConfig, entries: Vec<String>) -> Result<()> {
+    let url = format!("http://localhost:{}/state", ports.rest_api);
+
+    for address in entries {
+        let response = ureq::get(&url).query("address", &address).call()?;
+        let response: RawStateResponse = serde_json::from_reader(response.into_reader())?;
+        assert_eq!(response.data.len(), 0);
+    }
+    Ok(())
+}
+
+pub fn expect_set_state_entries(ports: PortConfig, entries: Vec<(String, Vec<u8>)>) -> Result<()> {
     let url = format!("http://localhost:{}/state", ports.rest_api);
 
     for (address, value) in entries {
@@ -627,16 +656,50 @@ fn expect_set_state_entries(ports: PortConfig, entries: Vec<(String, Vec<u8>)>) 
         assert_eq!(entry.address, address);
         let data_decoded = base64::decode(&entry.data)?;
 
-        assert_eq!(data_decoded, value);
+        if data_decoded != value {
+            if let Ok(wallet) = ccprocessor_rust::protos::DealOrder::try_parse(&data_decoded) {
+                if let Ok(expected) = ccprocessor_rust::protos::DealOrder::try_parse(&value) {
+                    println!(
+                        "Proto for address {} = {:#?}, \n\nexpected {:#?}",
+                        address, wallet, expected
+                    );
+                }
+            }
+            if let Ok(wallet) = ccprocessor_rust::protos::RepaymentOrder::try_parse(&data_decoded) {
+                if let Ok(expected) = ccprocessor_rust::protos::RepaymentOrder::try_parse(&value) {
+                    println!(
+                        "Proto for address {} = {:#?}, \n\nexpected {:#?}",
+                        address, wallet, expected
+                    );
+                }
+            }
+            if let Ok(wallet) = ccprocessor_rust::protos::Transfer::try_parse(&data_decoded) {
+                if let Ok(expected) = ccprocessor_rust::protos::Transfer::try_parse(&value) {
+                    println!(
+                        "Proto for address {} = {:#?}, \n\nexpected {:#?}",
+                        address, wallet, expected
+                    );
+                }
+            }
+            if let Ok(wallet) = ccprocessor_rust::protos::Fee::try_parse(&data_decoded) {
+                if let Ok(expected) = ccprocessor_rust::protos::Fee::try_parse(&value) {
+                    println!(
+                        "Proto for address {} = {:#?}, \n\nexpected {:#?}",
+                        address, wallet, expected
+                    );
+                }
+            }
+        }
+        assert_eq!(data_decoded, value, "for address {}", address);
     }
     Ok(())
 }
 
-fn expect_set_state_entry(ports: PortConfig, address: String, value: Vec<u8>) -> Result<()> {
+pub fn expect_set_state_entry(ports: PortConfig, address: String, value: Vec<u8>) -> Result<()> {
     expect_set_state_entries(ports, vec![(address, value)])
 }
 
-fn integration_test(func: impl FnOnce(PortConfig) + Send + 'static) {
+pub fn integration_test(func: impl FnOnce(PortConfig) + Send + 'static) {
     let test = DockerClient::new();
     let ports = PortConfig {
         validator_component: test.validator_component_port,
@@ -645,6 +708,7 @@ fn integration_test(func: impl FnOnce(PortConfig) + Send + 'static) {
         gateway: test.gateway_port,
     };
     test.run(|_client| async move {
+        tokio::time::sleep(Duration::from_millis(500)).await;
         let binary_path = env!("CARGO_BIN_EXE_ccprocessor-rust");
         let mut sub = std::process::Command::new(binary_path)
             .arg("-v")
@@ -652,7 +716,7 @@ fn integration_test(func: impl FnOnce(PortConfig) + Send + 'static) {
             .arg(&format!("tcp://localhost:{}", ports.validator_component))
             .arg("-G")
             .arg(&format!("tcp://localhost:{}", ports.gateway))
-            .stdout(std::process::Stdio::null())
+            // .stdout(std::process::Stdio::null())
             .spawn()
             .expect("Failed to spawn ccprocessor-rust");
 
@@ -689,40 +753,21 @@ fn integration_test(func: impl FnOnce(PortConfig) + Send + 'static) {
     });
 }
 
-fn setup_logs() {
+pub fn wallet_with(balance: Option<impl Into<rug::Integer> + Clone>) -> Option<Vec<u8>> {
+    use prost::Message;
+    balance.map(|b| {
+        let wallet = ccprocessor_rust::protos::Wallet {
+            amount: b.into().to_string(),
+        };
+        let mut buf = Vec::with_capacity(wallet.encoded_len());
+        wallet.encode(&mut buf).unwrap();
+        buf
+    })
+}
+
+pub fn setup_logs() {
     static LOGS: Once = Once::new();
     LOGS.call_once(|| {
-        ccprocessor_rust::setup_logs(1).unwrap();
-    });
-}
-
-#[test]
-fn foo() {
-    setup_logs();
-    integration_test(|ports| {
-        let _my_sighash = SigHash::from("my_sighash");
-
-        let command = CollectCoins {
-            amount: 1000000000.into(),
-            eth_address: "asdfasdf".into(),
-            blockchain_tx_id: "unused_if_hacked".into(),
-        };
-        execute_success(command, ports, None);
-        // std::thread::sleep(Duration::from_secs(15));
-    });
-}
-#[test]
-fn bar() {
-    setup_logs();
-    integration_test(|ports| {
-        let _my_sighash = SigHash::from("my_sighash");
-
-        let command = CollectCoins {
-            amount: (-1).into(),
-            eth_address: "asdfasdf".into(),
-            blockchain_tx_id: "unused_if_hacked".into(),
-        };
-        execute_failure(command, "Expecting a positive value", ports, None);
-        // std::thread::sleep(Duration::from_secs(15));
+        ccprocessor_rust::setup_logs(3).unwrap();
     });
 }
