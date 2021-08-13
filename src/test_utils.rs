@@ -1,5 +1,13 @@
 #![cfg(any(test, feature = "integration-testing"))]
-use crate::handler::*;
+use std::collections::HashMap;
+use std::fmt;
+use std::str::FromStr;
+
+use crate::ext::MessageExt;
+use crate::handler::constants::{ADDR, TRANSFER};
+use crate::handler::types::{Address, Credo, CurrencyAmount, Guid, SigHash, State};
+use crate::{handler::*, protos, string};
+use sawtooth_sdk::signing::{create_context, secp256k1::Secp256k1PrivateKey, Signer};
 use serde::Serialize;
 
 macro_rules! command {
@@ -233,5 +241,230 @@ impl ToGenericCommand for CollectCoins {
             amount.to_string(),
             blockchain_tx_id,
         )
+    }
+}
+
+pub fn signer_with_secret(secret: &str) -> Signer<'static> {
+    let private_key = Secp256k1PrivateKey::from_hex(&secret.trim()).unwrap();
+
+    let context = create_context("secp256k1").unwrap();
+    Signer::new_boxed(context, Box::new(private_key))
+}
+
+pub fn make_fee(guid: &Guid, sighash: &SigHash, block: Option<u64>) -> (String, Vec<u8>) {
+    let fee_id = Address::with_prefix_key(crate::handler::constants::FEE, guid.as_str());
+    let fee = crate::protos::Fee {
+        sighash: sighash.clone().into(),
+        block: block.unwrap_or_default().to_string(),
+    };
+    (fee_id.to_string(), fee.to_bytes())
+}
+
+pub type Nonce = [u8; 16];
+
+pub fn make_nonce() -> Nonce {
+    use rand::distributions::Alphanumeric;
+    use rand::Rng;
+    use std::convert::TryInto;
+    let nonce: Vec<_> = rand::thread_rng()
+        .sample_iter(Alphanumeric)
+        .take(16)
+        .collect();
+    nonce[..16].try_into().unwrap()
+}
+
+pub fn address_id_for(address: &str) -> Address {
+    Address::with_prefix_key(
+        crate::handler::constants::ADDR,
+        &crate::string!("ethereum", address, "rinkeby"),
+    )
+}
+
+pub fn register_address_for(value: &str) -> RegisterAddress {
+    RegisterAddress {
+        blockchain: "ethereum".into(),
+        address: value.into(),
+        network: "rinkeby".into(),
+    }
+}
+
+pub fn address_for(value: &str, sighash: &SigHash) -> crate::protos::Address {
+    crate::protos::Address {
+        blockchain: "ethereum".into(),
+        value: value.into(),
+        network: "rinkeby".into(),
+        sighash: sighash.to_string(),
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Role {
+    Investor,
+    Fundraiser,
+    Collector,
+    Any,
+}
+
+#[derive(Clone, PartialEq)]
+pub struct Identity {
+    pub secret: String,
+    pub sighash: SigHash,
+}
+
+impl Identity {
+    pub fn signer(&self) -> Signer<'static> {
+        signer_with_secret(&self.secret)
+    }
+}
+
+impl fmt::Debug for Identity {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Identity")
+            .field("sighash", &self.sighash)
+            .finish_non_exhaustive()
+    }
+}
+
+impl Identity {
+    pub fn new(secret: &str) -> Self {
+        let secret = secret.to_owned();
+        let signer = signer_with_secret(&secret);
+        let sighash = SigHash::from(&signer);
+        Self { secret, sighash }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct TestInfo {
+    pub investor: Option<Identity>,
+    pub fundraiser: Option<Identity>,
+    pub collector: Option<Identity>,
+    pub primary: Identity,
+    pub tx_fee: Credo,
+    pub state: HashMap<Address, State>,
+}
+
+impl TestInfo {
+    pub fn identity_for(&self, role: Role) -> Option<Identity> {
+        match role {
+            Role::Investor => self.investor.clone(),
+            Role::Fundraiser => self.fundraiser.clone(),
+            Role::Collector => self.collector.clone(),
+            Role::Any => Some(self.primary.clone()),
+        }
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct TestCommand {
+    pub identity: Identity,
+    pub guid: Guid,
+    pub command: CCCommand,
+    pub role: Role,
+}
+
+impl TestCommand {
+    pub fn new(command: CCCommand, role: Role, identity: Identity) -> Self {
+        let guid = Guid::from(make_nonce());
+        Self {
+            identity,
+            command,
+            guid,
+            role,
+        }
+    }
+}
+
+pub trait HasDependencies {
+    fn dependencies(&self, info: &TestInfo) -> Option<Vec<TestCommand>>;
+}
+
+impl HasDependencies for SendFunds {
+    fn dependencies(&self, info: &TestInfo) -> Option<Vec<TestCommand>> {
+        None
+    }
+}
+
+impl HasDependencies for RegisterAddress {
+    fn dependencies(&self, info: &TestInfo) -> Option<Vec<TestCommand>> {
+        None
+    }
+}
+
+impl HasDependencies for RegisterTransfer {
+    fn dependencies(&self, info: &TestInfo) -> Option<Vec<TestCommand>> {
+        todo!()
+    }
+}
+
+pub trait HasState {
+    fn resulting_state(&self, info: &TestInfo) -> (Address, State);
+}
+
+impl HasState for TestCommand {
+    fn resulting_state(&self, info: &TestInfo) -> (Address, State) {
+        match &self.command {
+            CCCommand::SendFunds(_) => todo!(),
+            CCCommand::RegisterAddress(RegisterAddress {
+                blockchain,
+                address,
+                network,
+            }) => {
+                let address_id = Address::with_prefix_key(
+                    ADDR,
+                    &crate::string!(&blockchain, &address, &network),
+                );
+                let state = protos::Address {
+                    blockchain: blockchain.clone(),
+                    value: address.clone(),
+                    network: network.clone(),
+                    sighash: self.identity.sighash.to_string(),
+                };
+                (address_id, state.to_bytes().into())
+            }
+            CCCommand::RegisterTransfer(RegisterTransfer {
+                gain,
+                order_id,
+                blockchain_tx_id,
+            }) => {
+                let s = info.state.get(&Address::from(order_id.clone())).unwrap();
+                let order = protos::DealOrder::try_parse(&s).unwrap();
+                let address = info
+                    .state
+                    .get(&Address::from(order.src_address.clone()))
+                    .unwrap();
+                let address = protos::Address::try_parse(&address).unwrap();
+                let address_id = Address::with_prefix_key(
+                    TRANSFER,
+                    &string!(&order.blockchain, &blockchain_tx_id, &address.network),
+                );
+                let state = protos::Transfer {
+                    blockchain: order.blockchain,
+                    src_address: order.src_address,
+                    dst_address: order.dst_address,
+                    order: order_id.clone(),
+                    amount: (CurrencyAmount::try_parse(order.amount).unwrap() + gain.clone())
+                        .to_string(),
+                    tx: blockchain_tx_id.clone(),
+                    block: (u64::from_str(&order.block).unwrap() + 1).to_string(),
+                    processed: false,
+                    sighash: info.identity_for(Role::Investor).unwrap().sighash.into(),
+                };
+                (address_id, state.to_bytes().into())
+            }
+            CCCommand::AddAskOrder(_) => todo!(),
+            CCCommand::AddBidOrder(_) => todo!(),
+            CCCommand::AddOffer(_) => todo!(),
+            CCCommand::AddDealOrder(_) => todo!(),
+            CCCommand::CompleteDealOrder(_) => todo!(),
+            CCCommand::LockDealOrder(_) => todo!(),
+            CCCommand::CloseDealOrder(_) => todo!(),
+            CCCommand::Exempt(_) => todo!(),
+            CCCommand::AddRepaymentOrder(_) => todo!(),
+            CCCommand::CompleteRepaymentOrder(_) => todo!(),
+            CCCommand::CloseRepaymentOrder(_) => todo!(),
+            CCCommand::CollectCoins(_) => todo!(),
+            CCCommand::Housekeeping(_) => todo!(),
+        }
     }
 }
