@@ -47,6 +47,8 @@ dirs = { package = "dirs-next", version = "2.0.0" }
 enclose = "1.1.8"
 futures-lite = "1.12.0"
 itertools = "0.10.1"
+libsecp256k1 = "0.6.0"
+old_rand = { package = "rand", version = "0.7" }
 maplit = "1.0.2"
 mockall = "0.10"
 pollster = "0.2.4"
@@ -58,6 +60,7 @@ test-env-log = { version = "0.2.7", default-features = false, features = [
 ] }
 tokio = { version = "1.9.0", features = ["rt", "macros", "net"] }
 ureq = "2.1.1"
+assert_matches = "1.5.0"
 
 [features]
 default = ["vendored", "mock"]

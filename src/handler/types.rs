@@ -1,6 +1,6 @@
 use anyhow::Context;
 use derive_more::{Add, AddAssign, Display, Div, Mul, Sub, SubAssign};
-use std::convert::{TryFrom, TryInto};
+use std::convert::TryFrom;
 use std::fmt;
 use std::ops::{Add, Sub};
 use std::ops::{AddAssign, Deref};
@@ -67,6 +67,14 @@ impl From<&str> for SigHash {
     }
 }
 
+#[cfg(any(test, feature = "integration-testing"))]
+impl From<&sawtooth_sdk::signing::Signer<'static>> for SigHash {
+    fn from(signer: &sawtooth_sdk::signing::Signer<'static>) -> Self {
+        let s = signer.get_public_key().unwrap().as_hex();
+        crate::handler::utils::sighash_from_pubkey(&s).unwrap()
+    }
+}
+
 impl SigHash {
     pub fn to_wallet_id(&self) -> WalletId {
         let wallet_id = string!(NAMESPACE_PREFIX, WALLET, self);
@@ -94,15 +102,13 @@ pub struct WalletId(pub String);
 
 impl From<&SigHash> for WalletId {
     fn from(sig: &SigHash) -> Self {
-        let buf = string!(NAMESPACE_PREFIX, WALLET, sig.as_str());
-        WalletId(buf)
+        sig.to_wallet_id()
     }
 }
 
 impl From<SigHash> for WalletId {
     fn from(sig: SigHash) -> Self {
-        let buf = string!(NAMESPACE_PREFIX, WALLET, sig.as_str());
-        WalletId(buf)
+        sig.to_wallet_id()
     }
 }
 
@@ -130,19 +136,19 @@ impl From<&str> for Guid {
     }
 }
 
-#[cfg(all(feature = "integration-testing"))]
+#[cfg(any(test, feature = "integration-testing"))]
 impl From<Guid> for [u8; 16] {
     fn from(guid: Guid) -> Self {
-        assert_eq!(guid.as_str().len(), 16);
-        guid.as_str().as_bytes().try_into().unwrap()
+        let nonce = hex::decode(&guid.as_str()).unwrap();
+        assert_eq!(nonce.len(), 16);
+        <[u8; 16]>::try_from(&nonce[..]).unwrap()
     }
 }
 
-#[cfg(all(feature = "integration-testing"))]
+#[cfg(any(test, feature = "integration-testing"))]
 impl From<[u8; 16]> for Guid {
     fn from(arr: [u8; 16]) -> Self {
-        let arr = arr.to_vec();
-        let s = String::from_utf8(arr).unwrap();
+        let s = crate::handler::utils::to_hex_string(&arr);
         Guid(s)
     }
 }
@@ -219,7 +225,6 @@ pub type StateVec = Vec<(String, Vec<u8>)>;
     From,
     Add,
     Sub,
-    Mul,
     Div,
     Default,
     AddAssign,
@@ -275,6 +280,27 @@ impl<'a> Add<u64> for Credo {
 
     fn add(self, rhs: u64) -> Self::Output {
         Self(self.0 + rhs)
+    }
+}
+impl<'a> Mul<u64> for Credo {
+    type Output = Credo;
+
+    fn mul(self, rhs: u64) -> Self::Output {
+        Self(self.0 * rhs)
+    }
+}
+impl<'a> Mul<Credo> for u64 {
+    type Output = Credo;
+
+    fn mul(self, rhs: Credo) -> Self::Output {
+        Credo(self * rhs.0)
+    }
+}
+impl<'a> Mul<Credo> for Credo {
+    type Output = Credo;
+
+    fn mul(self, rhs: Credo) -> Self::Output {
+        Credo(self.0 * rhs.0)
     }
 }
 impl<'a> AddAssign<&'a Credo> for Credo {

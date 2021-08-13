@@ -1178,15 +1178,6 @@ fn housekeeping_rejects_missing_arg() {
     deserialize_failure(ZeroArgCommand::new("Housekeeping"), "Expecting blockIdx");
 }
 
-fn make_fee(guid: &Guid, sighash: &SigHash, block: Option<u64>) -> (String, Vec<u8>) {
-    let fee_id = Address::with_prefix_key(super::constants::FEE, guid.as_str());
-    let fee = crate::protos::Fee {
-        sighash: sighash.clone().into(),
-        block: block.unwrap_or_default().to_string(),
-    };
-    (fee_id.to_string(), fee.to_bytes())
-}
-
 fn expect_set_state_entries(tx_ctx: &mut MockTransactionContext, entries: Vec<(String, Vec<u8>)>) {
     expect!(tx_ctx, set_state_entries where {
             let entries = entries.into_iter().sorted().collect_vec();
