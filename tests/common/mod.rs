@@ -747,18 +747,6 @@ pub fn integration_test(func: impl FnOnce(PortConfig) + Send + 'static) {
     });
 }
 
-pub fn wallet_with(balance: Option<impl Into<rug::Integer> + Clone>) -> Option<Vec<u8>> {
-    use prost::Message;
-    balance.map(|b| {
-        let wallet = ccprocessor_rust::protos::Wallet {
-            amount: b.into().to_string(),
-        };
-        let mut buf = Vec::with_capacity(wallet.encoded_len());
-        wallet.encode(&mut buf).unwrap();
-        buf
-    })
-}
-
 pub fn setup_logs() {
     static LOGS: Once = Once::new();
     LOGS.call_once(|| {

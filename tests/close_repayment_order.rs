@@ -23,13 +23,13 @@ fn close_repayment_order_success() {
     setup_logs();
     integration_test(|ports| {
         let investor_signer =
-            signer_with_secret("c407a9a643cb8181b1d42d6133529fea04bb8c8b8c3757cde04641a073b5d2d6");
+            signer_with_secret("1851500ff5f23998e71a7383d3d32fd1c296b6755b5861aef72b8b280b373119");
         let investor = SigHash::from(&investor_signer);
         let fundraiser_signer =
-            signer_with_secret("584d563037baf19910d3589cfbf2a4acf6a3a1a5782b8b99cd1bd17dc62b6f40");
+            signer_with_secret("d4f45fe6c087ca2140b7a74b85f28c2baf05ef53fb92584d9650690e58760b17");
         let fundraiser = SigHash::from(&fundraiser_signer);
         let collector_signer =
-            signer_with_secret("1803e850edbbfccdd4bafcfd16919c210b8ae45f0172b7958c0b088d4bc1be10");
+            signer_with_secret("beacb19329d4aeca5ac1b54c8fc4757625188c114d5748634234de008ea087a5");
         let collector = SigHash::from(&collector_signer);
         let mut tx_fee = ccprocessor_rust::handler::constants::TX_FEE.clone();
         let mut request = TpProcessRequest {
@@ -239,7 +239,7 @@ fn close_repayment_order_success() {
             let collect_coins = ccprocessor_rust::handler::CollectCoins {
                 amount: amount.into(),
                 eth_address: "dummy".into(),
-                blockchain_tx_id: "R0pOYRNfr344LYx".into(),
+                blockchain_tx_id: "FnIDyz85rHs4EWQ".into(),
             };
             let response = send_command_with_signer(collect_coins, ports, None, &investor_signer);
             assert_matches!(
@@ -253,7 +253,7 @@ fn close_repayment_order_success() {
             let collect_coins = ccprocessor_rust::handler::CollectCoins {
                 amount: amount.into(),
                 eth_address: "dummy".into(),
-                blockchain_tx_id: "NUI1JMINwCx4Qh0".into(),
+                blockchain_tx_id: "moENbt5qZ3PNFbl".into(),
             };
             let response = send_command_with_signer(collect_coins, ports, None, &fundraiser_signer);
             assert_matches!(
@@ -267,7 +267,7 @@ fn close_repayment_order_success() {
             let collect_coins = ccprocessor_rust::handler::CollectCoins {
                 amount: amount.into(),
                 eth_address: "dummy".into(),
-                blockchain_tx_id: "l7PSaXM2UkSFIWJ".into(),
+                blockchain_tx_id: "j0eYDw7W4GCGJS7".into(),
             };
             let response = send_command_with_signer(collect_coins, ports, None, &collector_signer);
             assert_matches!(

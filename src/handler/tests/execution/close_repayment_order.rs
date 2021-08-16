@@ -11,24 +11,14 @@ use super::*;
 fn close_repayment_order_success() {
     use crate::handler::types::*;
     use std::str::FromStr as _;
-    fn wallet_with(balance: Option<impl Into<Integer> + Clone>) -> Option<Vec<u8>> {
-        balance.map(|b| {
-            let wallet = crate::protos::Wallet {
-                amount: b.into().to_string(),
-            };
-            let mut buf = Vec::with_capacity(wallet.encoded_len());
-            wallet.encode(&mut buf).unwrap();
-            buf
-        })
-    }
     let investor_signer =
-        signer_with_secret("0caef8985b3bfd0cb2262ddeffadae6e19fff6f9abdb53fd7512d4153557bee0");
+        signer_with_secret("e2ad398ea6a8cb9eef0259109af0eefd990855a871281b37dbaf94a0959e2c09");
     let investor = SigHash::from(&investor_signer);
     let fundraiser_signer =
-        signer_with_secret("3afd8bf51c3947298e636b1edd4b735f842ba779574ad73c12b4f87461009751");
+        signer_with_secret("37a23d01ac925090d369ed4b022c168819c788e54179932ec68adf5f0957999b");
     let fundraiser = SigHash::from(&fundraiser_signer);
     let collector_signer =
-        signer_with_secret("71877788f9ecc7c114188d0f83edd8b1f37596ec1a19364d837af57e1f1fe990");
+        signer_with_secret("a131df4d51e5a721115901a8aa0db3a15a427af65a743d3015776f24eadf49d0");
     let collector = SigHash::from(&collector_signer);
     let mut tx_fee = TX_FEE.clone();
     let mut request = TpProcessRequest {

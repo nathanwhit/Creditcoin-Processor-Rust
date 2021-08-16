@@ -3,6 +3,8 @@
 use crate::ext::MessageExt;
 use crate::handler::types::{Address, Guid, SigHash};
 use crate::handler::*;
+use prost::Message;
+use rug::Integer;
 use sawtooth_sdk::signing::{create_context, secp256k1::Secp256k1PrivateKey, Signer};
 use serde::Serialize;
 
@@ -291,4 +293,15 @@ pub fn address_for(value: &str, sighash: &SigHash) -> crate::protos::Address {
         network: "rinkeby".into(),
         sighash: sighash.to_string(),
     }
+}
+
+pub fn wallet_with(balance: Option<impl Into<Integer> + Clone>) -> Option<Vec<u8>> {
+    balance.map(|b| {
+        let wallet = crate::protos::Wallet {
+            amount: b.into().to_string(),
+        };
+        let mut buf = Vec::with_capacity(wallet.encoded_len());
+        wallet.encode(&mut buf).unwrap();
+        buf
+    })
 }
