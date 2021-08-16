@@ -1,0 +1,124 @@
+name = "RegisterTransfer success"
+sighashes = [investor, fundraiser]
+result = pass
+
+
+let investor_address_id = address_id_for("myaddress");
+let fundraiser_address_id = address_id_for("otheraddress");
+let bid_order_guid = Guid();
+let ask_order_guid = Guid();
+let offer_guid = Guid();
+let ask_order_id = rust { Address::with_prefix_key(ASK_ORDER, ask_order_guid.as_str()) };
+let bid_order_id = rust { Address::with_prefix_key(BID_ORDER, bid_order_guid.as_str()) };
+let offer_id = rust { Address::with_prefix_key(OFFER, &string!(ask_order_id.as_str(), bid_order_id.as_str())) };
+let deal_order_guid = Guid();
+let deal_order_id = rust { Address::with_prefix_key(DEAL_ORDER, offer_id.as_str())};
+
+command = RegisterTransfer {
+    gain: 1.into(),
+    order_id: deal_order_id.into(),
+    blockchain_tx_id: s"blockchaintxid",
+}
+signer = Signer(investor)
+request = TpProcessRequest {
+    tip: 9,
+    ..default
+}
+
+require(
+    Wallet for investor with amount = rust { Integer::from(Credo::from(4) * tx_fee.clone() + 2) },
+    Wallet for fundraiser with amount = rust { Integer::from(Credo::from(4) * tx_fee.clone() )},
+    send transaction RegisterAddress {
+        blockchain: s"ethereum",
+        address: s"myaddress",
+        network: s"rinkeby",
+    } with signer = Signer(investor),
+    send transaction RegisterAddress {
+        blockchain: s"ethereum",
+        address: s"otheraddress",
+        network: s"rinkeby",
+    } with signer = Signer(fundraiser),
+    send transaction AddBidOrder {
+        address_id: investor_address_id.to_string(),
+        amount_str: s"1",
+        interest: s"0",
+        maturity: s"1",
+        fee_str: s"2",
+        expiration: rust { BlockNum(100) },
+    } with signer = Signer(investor), guid = bid_order_guid,
+    send transaction AddAskOrder {
+        address_id: fundraiser_address_id.to_string(),
+        amount_str: s"1",
+        interest: s"0",
+        maturity: s"1",
+        fee_str: s"2",
+        expiration: rust { BlockNum(100) },
+    } with signer = Signer(fundraiser), guid = ask_order_guid,
+    send transaction AddOffer {
+        ask_order_id: ask_order_id.into(),
+        bid_order_id: bid_order_id.into(),
+        expiration: rust { BlockNum(100) },
+    } with signer = Signer(fundraiser), guid = offer_guid,
+    send transaction AddDealOrder {
+        offer_id: offer_id.into(),
+        expiration: 100.into(),
+    } with signer = Signer(investor), guid = deal_order_guid,
+);
+
+let deal_order = crate::protos::DealOrder {
+    blockchain: s"ethereum",
+    dst_address: investor_address_id.into(),
+    src_address: fundraiser_address_id.into(),
+    amount: s"1",
+    sighash: investor.to_string(),
+    ..default
+};
+let investor_address = crate::protos::Address {
+    blockchain: s"ethereum",
+    value: s"myaddress",
+    network: s"rinkeby",
+    sighash: investor.to_string(),
+};
+let fundraiser_address = crate::protos::Address {
+    blockchain: s"ethereum",
+    value: s"otheraddress",
+    network: s"rinkeby",
+    sighash: fundraiser.to_string(),
+};
+let transfer_id = rust { 
+    Address::with_prefix_key(
+        TRANSFER, 
+        &string!(&investor_address.blockchain, &command.blockchain_tx_id, &investor_address.network)
+    ) 
+};
+let transfer = crate::protos::Transfer {
+    blockchain: investor_address.blockchain.clone(),
+    dst_address: fundraiser_address_id.to_string(),
+    src_address: investor_address_id.to_string(),
+    order: command.order_id.clone(),
+    amount: rust { (command.gain.clone() + 1).to_string() },
+    tx: command.blockchain_tx_id.clone(),
+    sighash: investor.to_string(),
+    block: 8.to_string(),
+    processed: false,
+};
+
+let guid = Guid(command);
+
+expect(
+    sighash -> investor,
+    guid -> Guid(command),
+    get balance at WalletId(investor) -> tx_fee,
+    get state at deal_order_id -> Some(deal_order),
+    get state at investor_address_id -> Some(investor_address),
+    get state at fundraiser_address_id -> Some(fundraiser_address),
+    get state at transfer_id -> None,
+    verify -> Ok(()),
+    set states {
+        transfer_id.to_string() : transfer.to_bytes(),
+        WalletId(investor) : rust { wallet_with(Some(0)).unwrap() } ,
+        rust { 
+            make_fee(&guid, &investor, Some(8))
+        }
+    }
+)
