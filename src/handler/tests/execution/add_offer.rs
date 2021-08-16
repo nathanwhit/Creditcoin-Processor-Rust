@@ -12,10 +12,10 @@ fn add_offer_success() {
     use crate::handler::types::*;
     use std::str::FromStr as _;
     let investor_signer =
-        signer_with_secret("eb9d124b0773f3fb4b010ca4763c41180bee6e4629204b64abb607961dc37de9");
+        signer_with_secret("827c39480011a29fa972ed8b671ee5a69edd13e24b5442ee2694514e56d15d88");
     let investor = SigHash::from(&investor_signer);
     let fundraiser_signer =
-        signer_with_secret("72a22af281ff5225c1f2f20d1650d35df41fe8bc4dcf3a9c6b7981ad167dd08c");
+        signer_with_secret("48b0ae97607427a8550e4da5edc8da0a04617adde25c98a405a0c47114cdf69e");
     let fundraiser = SigHash::from(&fundraiser_signer);
     let mut tx_fee = TX_FEE.clone();
     let mut request = TpProcessRequest {

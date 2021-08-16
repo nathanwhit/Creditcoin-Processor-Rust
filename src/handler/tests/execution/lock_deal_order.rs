@@ -12,10 +12,10 @@ fn lock_deal_order_success() {
     use crate::handler::types::*;
     use std::str::FromStr as _;
     let investor_signer =
-        signer_with_secret("60deaf1883e22f9904fa1650c7dd70f3a9d3bfa055f173235e664d9a6b1d0707");
+        signer_with_secret("827c39480011a29fa972ed8b671ee5a69edd13e24b5442ee2694514e56d15d88");
     let investor = SigHash::from(&investor_signer);
     let fundraiser_signer =
-        signer_with_secret("24541ecd3541c5ec30b24ca27aa3f24093f1983e0023d3affc6871db11172109");
+        signer_with_secret("48b0ae97607427a8550e4da5edc8da0a04617adde25c98a405a0c47114cdf69e");
     let fundraiser = SigHash::from(&fundraiser_signer);
     let mut tx_fee = TX_FEE.clone();
     let mut request = TpProcessRequest {

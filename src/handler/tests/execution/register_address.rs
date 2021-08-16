@@ -12,7 +12,7 @@ fn register_address_success() {
     use crate::handler::types::*;
     use std::str::FromStr as _;
     let my_sighash_signer =
-        signer_with_secret("14087a043f55556a2c73077ea6d336da9ff6bb5e61842ec5ab9ba6478c0fcea7");
+        signer_with_secret("827c39480011a29fa972ed8b671ee5a69edd13e24b5442ee2694514e56d15d88");
     let my_sighash = SigHash::from(&my_sighash_signer);
     let mut tx_fee = TX_FEE.clone();
     let mut request = TpProcessRequest {
@@ -91,10 +91,10 @@ fn register_address_taken() {
     use crate::handler::types::*;
     use std::str::FromStr as _;
     let my_sighash_signer =
-        signer_with_secret("80c78e1fdf56d890a3cb6d45184ce60b5471182e4608f8086fdd08f8cf5d84a3");
+        signer_with_secret("48b0ae97607427a8550e4da5edc8da0a04617adde25c98a405a0c47114cdf69e");
     let my_sighash = SigHash::from(&my_sighash_signer);
     let other_sighash_signer =
-        signer_with_secret("11ec3faadcbdf2142cd2526c037a72dbc630f15ccaa98ec6a5304953a52249f1");
+        signer_with_secret("0bf47d913365b3c163897b3a40a03db6c14c2c8637ac732d93552b3ce6dbfabe");
     let other_sighash = SigHash::from(&other_sighash_signer);
     let mut tx_fee = TX_FEE.clone();
     let mut request = TpProcessRequest {

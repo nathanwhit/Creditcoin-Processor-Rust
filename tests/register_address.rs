@@ -23,7 +23,7 @@ fn register_address_success() {
     setup_logs();
     integration_test(|ports| {
         let my_sighash_signer =
-            signer_with_secret("2ac8239c8368a9d4c278abf1206670b1c38283d188175e93da7b18200dc77eee");
+            signer_with_secret("827c39480011a29fa972ed8b671ee5a69edd13e24b5442ee2694514e56d15d88");
         let my_sighash = SigHash::from(&my_sighash_signer);
         let mut tx_fee = ccprocessor_rust::handler::constants::TX_FEE.clone();
         let mut request = TpProcessRequest {
@@ -41,7 +41,7 @@ fn register_address_success() {
             let collect_coins = ccprocessor_rust::handler::CollectCoins {
                 amount: amount.into(),
                 eth_address: "dummy".into(),
-                blockchain_tx_id: "LQ4zwpe1tTTKiH5".into(),
+                blockchain_tx_id: "ncp3CpqlvPLhtOw".into(),
             };
             let response = send_command_with_signer(collect_coins, ports, None, &my_sighash_signer);
             assert_matches!(
@@ -107,10 +107,10 @@ fn register_address_taken() {
     setup_logs();
     integration_test(|ports| {
         let my_sighash_signer =
-            signer_with_secret("58c5a84c77c76d8156bac2933e0f2d97accb2902eba8fe3fa515e6f6853a7257");
+            signer_with_secret("edb3e8e44d4a1f0050ce03a729b2da887b644e95ec6bf6a0cfdbf0f40bf47d91");
         let my_sighash = SigHash::from(&my_sighash_signer);
         let other_sighash_signer =
-            signer_with_secret("eb5eea1e609975428a752df39a9f1c567162278c67b0913ec3fd332fd1b73459");
+            signer_with_secret("7586793549de011ef43bfac7cee149feb1f1de9a5f558c75ef46714b544f4fe3");
         let other_sighash = SigHash::from(&other_sighash_signer);
         let mut tx_fee = ccprocessor_rust::handler::constants::TX_FEE.clone();
         let mut request = TpProcessRequest {
@@ -138,7 +138,7 @@ fn register_address_taken() {
             let collect_coins = ccprocessor_rust::handler::CollectCoins {
                 amount: amount.into(),
                 eth_address: "dummy".into(),
-                blockchain_tx_id: "ZlOox37YrG7xT9Y".into(),
+                blockchain_tx_id: "4MrUslkrXe5bAHt".into(),
             };
             let response = send_command_with_signer(collect_coins, ports, None, &my_sighash_signer);
             assert_matches!(
@@ -152,7 +152,7 @@ fn register_address_taken() {
             let collect_coins = ccprocessor_rust::handler::CollectCoins {
                 amount: amount.into(),
                 eth_address: "dummy".into(),
-                blockchain_tx_id: "helio68BkQsqdYB".into(),
+                blockchain_tx_id: "qrXc4V46SL8cHOL".into(),
             };
             let response =
                 send_command_with_signer(collect_coins, ports, None, &other_sighash_signer);

@@ -12,7 +12,7 @@ fn add_bid_order_success() {
     use crate::handler::types::*;
     use std::str::FromStr as _;
     let fundraiser_signer =
-        signer_with_secret("ff51dedfb38a6ae9cdce4856277b00032097b27c69db526e4c983040bea94c03");
+        signer_with_secret("827c39480011a29fa972ed8b671ee5a69edd13e24b5442ee2694514e56d15d88");
     let fundraiser = SigHash::from(&fundraiser_signer);
     let mut tx_fee = TX_FEE.clone();
     let mut request = TpProcessRequest {
