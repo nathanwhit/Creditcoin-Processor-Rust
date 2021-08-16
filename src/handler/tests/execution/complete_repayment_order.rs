@@ -12,13 +12,13 @@ fn complete_repayment_order_success() {
     use crate::handler::types::*;
     use std::str::FromStr as _;
     let investor_signer =
-        signer_with_secret("b67d969aa45957bf2431be2b233a2776116f28d41ec00b8f26958f6f94e19900");
+        signer_with_secret("827c39480011a29fa972ed8b671ee5a69edd13e24b5442ee2694514e56d15d88");
     let investor = SigHash::from(&investor_signer);
     let fundraiser_signer =
-        signer_with_secret("bf0b27d506de87611a274031b031c6e3b21b253e5b2fdfef6e4110cb3f0f2fc1");
+        signer_with_secret("48b0ae97607427a8550e4da5edc8da0a04617adde25c98a405a0c47114cdf69e");
     let fundraiser = SigHash::from(&fundraiser_signer);
     let collector_signer =
-        signer_with_secret("0b359504508e4ee65b6aae97468f0007357e992cb97902ce298a761b234b3100");
+        signer_with_secret("0bf47d913365b3c163897b3a40a03db6c14c2c8637ac732d93552b3ce6dbfabe");
     let collector = SigHash::from(&collector_signer);
     let mut tx_fee = TX_FEE.clone();
     let mut request = TpProcessRequest {

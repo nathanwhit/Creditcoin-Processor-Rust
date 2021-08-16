@@ -12,10 +12,10 @@ fn send_funds_success() {
     use crate::handler::types::*;
     use std::str::FromStr as _;
     let my_sighash_signer =
-        signer_with_secret("c250b76ec20c4b510978117d443784c523dd25ea34cc6e38bec3240f4df7ecd5");
+        signer_with_secret("827c39480011a29fa972ed8b671ee5a69edd13e24b5442ee2694514e56d15d88");
     let my_sighash = SigHash::from(&my_sighash_signer);
     let fundraiser_sighash_signer =
-        signer_with_secret("50dd5bb3cf7baf745f8b9a9a4d0737abfb46db83dc35c42b30947fb92703dcdf");
+        signer_with_secret("48b0ae97607427a8550e4da5edc8da0a04617adde25c98a405a0c47114cdf69e");
     let fundraiser_sighash = SigHash::from(&fundraiser_sighash_signer);
     let mut tx_fee = TX_FEE.clone();
     let mut request = TpProcessRequest {
@@ -95,10 +95,10 @@ fn send_funds_cannot_afford_fee() {
     use crate::handler::types::*;
     use std::str::FromStr as _;
     let my_sighash_signer =
-        signer_with_secret("0f840553c290c0edee8c6203767d39685e7b7b9abd51de6f322b03ef2e56babf");
+        signer_with_secret("0bf47d913365b3c163897b3a40a03db6c14c2c8637ac732d93552b3ce6dbfabe");
     let my_sighash = SigHash::from(&my_sighash_signer);
     let fundraiser_sighash_signer =
-        signer_with_secret("7bcbeecf06719c532498caf170ab9081284bd91fcacad775c850ccffa67a1dac");
+        signer_with_secret("544f4fe3edb3e8e44d4a1f0050ce03a729b2da887b644e95ec6bf6a0cfdbf0f4");
     let fundraiser_sighash = SigHash::from(&fundraiser_sighash_signer);
     let mut tx_fee = TX_FEE.clone();
     let mut request = TpProcessRequest::default();
@@ -138,10 +138,10 @@ fn send_funds_cannot_afford_amount() {
     use crate::handler::types::*;
     use std::str::FromStr as _;
     let my_sighash_signer =
-        signer_with_secret("8fb7a9ee534e27b004424d6073b83aa91c032860f2e150d05eb64e7ec4354bd0");
+        signer_with_secret("f5b200e37586793549de011ef43bfac7cee149feb1f1de9a5f558c75ef46714b");
     let my_sighash = SigHash::from(&my_sighash_signer);
     let fundraiser_sighash_signer =
-        signer_with_secret("d226d9f3133f374d866860e65e604f9b5fea737631239e1a716339cf0858e7f5");
+        signer_with_secret("f5cc8af9d13b3190729fb196a385e5b28663ad538724fdadf7ef25ff20c38b31");
     let fundraiser_sighash = SigHash::from(&fundraiser_sighash_signer);
     let mut tx_fee = TX_FEE.clone();
     let mut request = TpProcessRequest::default();
@@ -181,7 +181,7 @@ fn send_funds_to_self() {
     use crate::handler::types::*;
     use std::str::FromStr as _;
     let my_sighash_signer =
-        signer_with_secret("1f033c7d7833fe5433ae7f8ad3f940e8c4baa2a44292730315f42a8c1d6164cf");
+        signer_with_secret("9628e0b771d0bc1ecd7975011f18d46dab673de62997297b1f40985f6a166dac");
     let my_sighash = SigHash::from(&my_sighash_signer);
     let mut tx_fee = TX_FEE.clone();
     let mut request = TpProcessRequest::default();

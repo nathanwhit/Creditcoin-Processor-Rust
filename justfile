@@ -6,9 +6,10 @@ build-release:
 
 update-tests:
     #!/usr/bin/env sh
-    # if ! [ -x "$(command -v cctestgen)" ]; then
-    #     cargo install --git https://github.com/nathanwhit/cctestgen
-    # fi
+    version='0.2'
+    if ! [ "$(cctestgen --version | grep -F $version)" ]; then
+        cargo install --force --git https://github.com/nathanwhit/cctestgen
+    fi
     for file in ./descriptors/*;
     do 
         base=$(basename $file)

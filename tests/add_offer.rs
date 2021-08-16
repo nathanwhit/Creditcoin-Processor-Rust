@@ -23,10 +23,10 @@ fn add_offer_success() {
     setup_logs();
     integration_test(|ports| {
         let investor_signer =
-            signer_with_secret("c66c4c50fa03486fe2bff178e20bbf800df1b2559f4995ea80816324b2cee22a");
+            signer_with_secret("827c39480011a29fa972ed8b671ee5a69edd13e24b5442ee2694514e56d15d88");
         let investor = SigHash::from(&investor_signer);
         let fundraiser_signer =
-            signer_with_secret("f2ed100e78a09ff8b531ef55addd8ad939e139252af1c08105df57f0f30619ef");
+            signer_with_secret("48b0ae97607427a8550e4da5edc8da0a04617adde25c98a405a0c47114cdf69e");
         let fundraiser = SigHash::from(&fundraiser_signer);
         let mut tx_fee = ccprocessor_rust::handler::constants::TX_FEE.clone();
         let mut request = TpProcessRequest {
@@ -92,7 +92,7 @@ fn add_offer_success() {
             let collect_coins = ccprocessor_rust::handler::CollectCoins {
                 amount: amount.into(),
                 eth_address: "dummy".into(),
-                blockchain_tx_id: "vj2PRUaH5PLT4hn".into(),
+                blockchain_tx_id: "vPLhtOwk9olipA5".into(),
             };
             let response = send_command_with_signer(collect_coins, ports, None, &investor_signer);
             assert_matches!(
@@ -106,7 +106,7 @@ fn add_offer_success() {
             let collect_coins = ccprocessor_rust::handler::CollectCoins {
                 amount: amount.into(),
                 eth_address: "dummy".into(),
-                blockchain_tx_id: "zZGf9TF3yu3pGp4".into(),
+                blockchain_tx_id: "4SdmxHN4MrUslkr".into(),
             };
             let response = send_command_with_signer(collect_coins, ports, None, &fundraiser_signer);
             assert_matches!(

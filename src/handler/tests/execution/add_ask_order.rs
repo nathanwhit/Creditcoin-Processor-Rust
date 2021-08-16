@@ -12,7 +12,7 @@ fn add_ask_order_success() {
     use crate::handler::types::*;
     use std::str::FromStr as _;
     let investor_signer =
-        signer_with_secret("debc4dbf50ec93a211d1da5f276e2d218155da973149b307de88abb099fd4d50");
+        signer_with_secret("827c39480011a29fa972ed8b671ee5a69edd13e24b5442ee2694514e56d15d88");
     let investor = SigHash::from(&investor_signer);
     let mut tx_fee = TX_FEE.clone();
     let mut request = TpProcessRequest {
