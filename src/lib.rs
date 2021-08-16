@@ -60,6 +60,10 @@ pub fn setup_logs(verbose_count: u64) -> Result<()> {
         .level(level)
         .level_for("sawtooth_sdk::consensus::zmq_driver", LevelFilter::Error)
         .level_for("sawtooth_sdk::messaging::zmq_stream", LevelFilter::Error)
+        .level_for("bollard", LevelFilter::Error)
+        .level_for("mio", LevelFilter::Error)
+        .level_for("want", LevelFilter::Error)
+        .level_for("ureq", LevelFilter::Warn)
         .format(fmt_log)
         .chain(stdout())
         .apply()?;
