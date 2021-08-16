@@ -432,7 +432,6 @@ impl TryFrom<&str> for BlockNum {
     type Error = anyhow::Error;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        println!("value = {:?}", value);
         if value.contains('-') {
             println!("It's negative!");
             return Err(CCApplyError::InvalidTransaction(NEGATIVE_NUMBER_ERR.into()))?;

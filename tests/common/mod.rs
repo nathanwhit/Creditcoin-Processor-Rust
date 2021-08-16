@@ -60,7 +60,7 @@ pub async fn ensure_image_present(docker: &Docker, image: &str, tag: &str) -> Re
     let image_name = format!("{}:{}", image, tag);
     match docker.inspect_image(&image_name).await {
         Ok(_image) => {
-            println!("got image");
+            log::info!("got image");
         }
         Err(_e) => {
             while let Some(Ok(_response)) = docker
@@ -214,9 +214,9 @@ pub async fn setup(docker: &mut DockerClient) -> Result<()> {
 
     docker.cleanup_networks.push(network_id.clone());
 
-    ensure_image_present(&docker, "hyperledger/sawtooth-settings-tp", "1.0").await?;
-    ensure_image_present(&docker, "gluwa/creditcoin-validator", "1.7.1").await?;
-    ensure_image_present(&docker, "gluwa/sawtooth-rest-api", "latest").await?;
+    ensure_image_present(docker, "hyperledger/sawtooth-settings-tp", "1.0").await?;
+    ensure_image_present(docker, "gluwa/creditcoin-validator", "1.7.1").await?;
+    ensure_image_present(docker, "gluwa/sawtooth-rest-api", "latest").await?;
 
     let name = random_name("creditcoin-validator");
 
@@ -418,10 +418,7 @@ impl From<RawBatchStatus> for BatchStatus {
 
 impl BatchStatus {
     fn is_complete(&self) -> bool {
-        match self {
-            Self::Committed | Self::Invalid(_) => true,
-            _ => false,
-        }
+        matches!(self, Self::Committed | Self::Invalid(_))
     }
 }
 
@@ -443,12 +440,11 @@ pub fn send_command_with_signer(
 
     // Generate a random 128 bit number to use as a nonce
 
-    let nonce = to_hex_string(&nonce.unwrap_or_else(|| make_nonce()).to_vec());
+    let nonce = to_hex_string(&nonce.unwrap_or_else(make_nonce).to_vec());
     log::warn!("Nonce = {:?}", nonce);
     txn_header.set_nonce(nonce);
 
     let input_vec = CCTransactionHandler::namespaces();
-    println!("{:?}", input_vec);
     let output_vec = input_vec.clone();
 
     txn_header.set_inputs(RepeatedField::from_vec(input_vec));
@@ -553,9 +549,9 @@ pub fn check_status(link: &str) -> BatchStatus {
 }
 
 pub fn complete_batch(link: &str, timeout: Option<Duration>) -> Option<BatchStatus> {
-    let mut status = check_status(&link);
+    let mut status = check_status(link);
     let start = Instant::now();
-    let timeout = timeout.unwrap_or(Duration::from_secs(60));
+    let timeout = timeout.unwrap_or_else(|| Duration::from_secs(60));
     let mut timed_out = false;
     while !status.is_complete() {
         if start.elapsed() > timeout {
@@ -563,7 +559,7 @@ pub fn complete_batch(link: &str, timeout: Option<Duration>) -> Option<BatchStat
             break;
         }
         std::thread::sleep(Duration::from_millis(200));
-        status = check_status(&link);
+        status = check_status(link);
     }
     if timed_out && !status.is_complete() {
         None
@@ -601,8 +597,6 @@ pub fn execute_failure(
 
     let status = complete_batch(&response.link, None).unwrap();
 
-    // TODO: send to REST API and expect failure!
-    println!("DEBUG: expected failure {}", expected_err);
     match status {
         BatchStatus::Committed => panic!("Expected failure but the transaction was accepted"),
         BatchStatus::Invalid(v) => {
