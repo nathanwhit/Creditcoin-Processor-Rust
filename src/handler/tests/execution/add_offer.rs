@@ -11,21 +11,11 @@ use super::*;
 fn add_offer_success() {
     use crate::handler::types::*;
     use std::str::FromStr as _;
-    fn wallet_with(balance: Option<impl Into<Integer> + Clone>) -> Option<Vec<u8>> {
-        balance.map(|b| {
-            let wallet = crate::protos::Wallet {
-                amount: b.into().to_string(),
-            };
-            let mut buf = Vec::with_capacity(wallet.encoded_len());
-            wallet.encode(&mut buf).unwrap();
-            buf
-        })
-    }
     let investor_signer =
-        signer_with_secret("11c5bcfc9b716aeedfd1f91d6ac118181a867f973828295e5d1ae5174a94355f");
+        signer_with_secret("eb9d124b0773f3fb4b010ca4763c41180bee6e4629204b64abb607961dc37de9");
     let investor = SigHash::from(&investor_signer);
     let fundraiser_signer =
-        signer_with_secret("f32cc029fb7430631ab83bea178e683e14dc0a70713f6c6cad83585bce76134c");
+        signer_with_secret("72a22af281ff5225c1f2f20d1650d35df41fe8bc4dcf3a9c6b7981ad167dd08c");
     let fundraiser = SigHash::from(&fundraiser_signer);
     let mut tx_fee = TX_FEE.clone();
     let mut request = TpProcessRequest {

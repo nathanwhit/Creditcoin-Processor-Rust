@@ -11,21 +11,11 @@ use super::*;
 fn send_funds_success() {
     use crate::handler::types::*;
     use std::str::FromStr as _;
-    fn wallet_with(balance: Option<impl Into<Integer> + Clone>) -> Option<Vec<u8>> {
-        balance.map(|b| {
-            let wallet = crate::protos::Wallet {
-                amount: b.into().to_string(),
-            };
-            let mut buf = Vec::with_capacity(wallet.encoded_len());
-            wallet.encode(&mut buf).unwrap();
-            buf
-        })
-    }
     let my_sighash_signer =
-        signer_with_secret("3c133fe90c6dead21bc5a2a7e16461fbdfd394c50c89222811ebd8d989c42a29");
+        signer_with_secret("c250b76ec20c4b510978117d443784c523dd25ea34cc6e38bec3240f4df7ecd5");
     let my_sighash = SigHash::from(&my_sighash_signer);
     let fundraiser_sighash_signer =
-        signer_with_secret("481269c7a99268d1b74d971499709b4158bb166cfa525a56e3b2f7be409a62eb");
+        signer_with_secret("50dd5bb3cf7baf745f8b9a9a4d0737abfb46db83dc35c42b30947fb92703dcdf");
     let fundraiser_sighash = SigHash::from(&fundraiser_sighash_signer);
     let mut tx_fee = TX_FEE.clone();
     let mut request = TpProcessRequest {
@@ -104,21 +94,11 @@ fn send_funds_success() {
 fn send_funds_cannot_afford_fee() {
     use crate::handler::types::*;
     use std::str::FromStr as _;
-    fn wallet_with(balance: Option<impl Into<Integer> + Clone>) -> Option<Vec<u8>> {
-        balance.map(|b| {
-            let wallet = crate::protos::Wallet {
-                amount: b.into().to_string(),
-            };
-            let mut buf = Vec::with_capacity(wallet.encoded_len());
-            wallet.encode(&mut buf).unwrap();
-            buf
-        })
-    }
     let my_sighash_signer =
-        signer_with_secret("6b8e3f47a58f3ea32aa0dc96406d26a76b4075b066f0a95f29c233f7bfcdf147");
+        signer_with_secret("0f840553c290c0edee8c6203767d39685e7b7b9abd51de6f322b03ef2e56babf");
     let my_sighash = SigHash::from(&my_sighash_signer);
     let fundraiser_sighash_signer =
-        signer_with_secret("8152255372b2da609bebf5fa66d1a7bdea017e4776d971f6732dc38add5f7ef7");
+        signer_with_secret("7bcbeecf06719c532498caf170ab9081284bd91fcacad775c850ccffa67a1dac");
     let fundraiser_sighash = SigHash::from(&fundraiser_sighash_signer);
     let mut tx_fee = TX_FEE.clone();
     let mut request = TpProcessRequest::default();
@@ -157,21 +137,11 @@ fn send_funds_cannot_afford_fee() {
 fn send_funds_cannot_afford_amount() {
     use crate::handler::types::*;
     use std::str::FromStr as _;
-    fn wallet_with(balance: Option<impl Into<Integer> + Clone>) -> Option<Vec<u8>> {
-        balance.map(|b| {
-            let wallet = crate::protos::Wallet {
-                amount: b.into().to_string(),
-            };
-            let mut buf = Vec::with_capacity(wallet.encoded_len());
-            wallet.encode(&mut buf).unwrap();
-            buf
-        })
-    }
     let my_sighash_signer =
-        signer_with_secret("97dd769194342f371aab634251f1cd8ed9c72350f32168200559148fbee3ba89");
+        signer_with_secret("8fb7a9ee534e27b004424d6073b83aa91c032860f2e150d05eb64e7ec4354bd0");
     let my_sighash = SigHash::from(&my_sighash_signer);
     let fundraiser_sighash_signer =
-        signer_with_secret("9b8b66c38ba3d7c58454caf9559bedea3273d4af34d4533bb279d27eeff79e6a");
+        signer_with_secret("d226d9f3133f374d866860e65e604f9b5fea737631239e1a716339cf0858e7f5");
     let fundraiser_sighash = SigHash::from(&fundraiser_sighash_signer);
     let mut tx_fee = TX_FEE.clone();
     let mut request = TpProcessRequest::default();
@@ -210,18 +180,8 @@ fn send_funds_cannot_afford_amount() {
 fn send_funds_to_self() {
     use crate::handler::types::*;
     use std::str::FromStr as _;
-    fn wallet_with(balance: Option<impl Into<Integer> + Clone>) -> Option<Vec<u8>> {
-        balance.map(|b| {
-            let wallet = crate::protos::Wallet {
-                amount: b.into().to_string(),
-            };
-            let mut buf = Vec::with_capacity(wallet.encoded_len());
-            wallet.encode(&mut buf).unwrap();
-            buf
-        })
-    }
     let my_sighash_signer =
-        signer_with_secret("848f01a2dd2f43cd2d0a7aa0c47e9ff76a01b81bcc7c4e7ec14d2aa7d19e7edf");
+        signer_with_secret("1f033c7d7833fe5433ae7f8ad3f940e8c4baa2a44292730315f42a8c1d6164cf");
     let my_sighash = SigHash::from(&my_sighash_signer);
     let mut tx_fee = TX_FEE.clone();
     let mut request = TpProcessRequest::default();

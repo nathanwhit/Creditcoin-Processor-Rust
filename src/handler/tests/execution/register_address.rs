@@ -11,18 +11,8 @@ use super::*;
 fn register_address_success() {
     use crate::handler::types::*;
     use std::str::FromStr as _;
-    fn wallet_with(balance: Option<impl Into<Integer> + Clone>) -> Option<Vec<u8>> {
-        balance.map(|b| {
-            let wallet = crate::protos::Wallet {
-                amount: b.into().to_string(),
-            };
-            let mut buf = Vec::with_capacity(wallet.encoded_len());
-            wallet.encode(&mut buf).unwrap();
-            buf
-        })
-    }
     let my_sighash_signer =
-        signer_with_secret("7e6f088db4be78d4fc6de8853a1b4b3636d1b73dbd205ffae8995dc67e822781");
+        signer_with_secret("14087a043f55556a2c73077ea6d336da9ff6bb5e61842ec5ab9ba6478c0fcea7");
     let my_sighash = SigHash::from(&my_sighash_signer);
     let mut tx_fee = TX_FEE.clone();
     let mut request = TpProcessRequest {
@@ -100,21 +90,11 @@ fn register_address_success() {
 fn register_address_taken() {
     use crate::handler::types::*;
     use std::str::FromStr as _;
-    fn wallet_with(balance: Option<impl Into<Integer> + Clone>) -> Option<Vec<u8>> {
-        balance.map(|b| {
-            let wallet = crate::protos::Wallet {
-                amount: b.into().to_string(),
-            };
-            let mut buf = Vec::with_capacity(wallet.encoded_len());
-            wallet.encode(&mut buf).unwrap();
-            buf
-        })
-    }
     let my_sighash_signer =
-        signer_with_secret("72708ee652c6f923f3827d19f7308ab7cc54553315bdb3ff975d43e2a4264ec4");
+        signer_with_secret("80c78e1fdf56d890a3cb6d45184ce60b5471182e4608f8086fdd08f8cf5d84a3");
     let my_sighash = SigHash::from(&my_sighash_signer);
     let other_sighash_signer =
-        signer_with_secret("bed922c6754807a42c62afc150780c74b13ad38038672c327f60b2c3d67aa27d");
+        signer_with_secret("11ec3faadcbdf2142cd2526c037a72dbc630f15ccaa98ec6a5304953a52249f1");
     let other_sighash = SigHash::from(&other_sighash_signer);
     let mut tx_fee = TX_FEE.clone();
     let mut request = TpProcessRequest {
