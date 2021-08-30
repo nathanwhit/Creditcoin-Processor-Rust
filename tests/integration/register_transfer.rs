@@ -1,6 +1,5 @@
 #![cfg(feature = "integration-testing")]
-mod common;
-use common::*;
+use super::common::*;
 
 #[test]
 #[allow(
@@ -28,6 +27,7 @@ fn register_transfer_success() {
         let fundraiser_signer =
             signer_with_secret("48b0ae97607427a8550e4da5edc8da0a04617adde25c98a405a0c47114cdf69e");
         let fundraiser = SigHash::from(&fundraiser_signer);
+        let mut tse = ToStateEntryCtx::new(4u64);
         let mut tx_fee = ccprocessor_rust::handler::constants::TX_FEE.clone();
         let mut request = TpProcessRequest {
             tip: 9,
@@ -35,17 +35,17 @@ fn register_transfer_success() {
         };
         let mut investor_address_id = address_id_for("myaddress");
         let mut fundraiser_address_id = address_id_for("otheraddress");
-        let mut bid_order_guid = Guid::from(make_nonce());
-        let mut ask_order_guid = Guid::from(make_nonce());
-        let mut offer_guid = Guid::from(make_nonce());
-        let mut ask_order_id = Address::with_prefix_key(ASK_ORDER, ask_order_guid.as_str());
-        let mut bid_order_id = Address::with_prefix_key(BID_ORDER, bid_order_guid.as_str());
-        let mut offer_id = Address::with_prefix_key(
+        let mut bid_order_guid = Guid::random();
+        let mut ask_order_guid = Guid::random();
+        let mut offer_guid = Guid::random();
+        let mut ask_order_id = AddressId::with_prefix_key(ASK_ORDER, ask_order_guid.as_str());
+        let mut bid_order_id = AddressId::with_prefix_key(BID_ORDER, bid_order_guid.as_str());
+        let mut offer_id = AddressId::with_prefix_key(
             OFFER,
             &string!(ask_order_id.as_str(), bid_order_id.as_str()),
         );
-        let mut deal_order_guid = Guid::from(make_nonce());
-        let mut deal_order_id = Address::with_prefix_key(DEAL_ORDER, offer_id.as_str());
+        let mut deal_order_guid = Guid::random();
+        let mut deal_order_id = AddressId::with_prefix_key(DEAL_ORDER, offer_id.as_str());
         let mut command = RegisterTransfer {
             gain: 1.into(),
             order_id: deal_order_id.clone().into(),
@@ -197,7 +197,7 @@ fn register_transfer_success() {
             network: String::from("rinkeby"),
             sighash: fundraiser.clone().to_string(),
         };
-        let mut transfer_id = Address::with_prefix_key(
+        let mut transfer_id = AddressId::with_prefix_key(
             TRANSFER,
             &string!(
                 &investor_address.blockchain,
@@ -206,12 +206,12 @@ fn register_transfer_success() {
             ),
         );
         let mut transfer = ccprocessor_rust::protos::Transfer {
-            blockchain: investor_address.clone().blockchain.clone(),
+            blockchain: investor_address.blockchain.clone(),
             dst_address: fundraiser_address_id.clone().to_string(),
             src_address: investor_address_id.clone().to_string(),
-            order: command.clone().order_id.clone(),
+            order: command.order_id.clone(),
             amount: (command.gain.clone() + 1).to_string(),
-            tx: command.clone().blockchain_tx_id.clone(),
+            tx: command.blockchain_tx_id.clone(),
             sighash: investor.clone().to_string(),
             block: 8.to_string(),
             processed: false,

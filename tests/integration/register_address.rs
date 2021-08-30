@@ -1,6 +1,5 @@
 #![cfg(feature = "integration-testing")]
-mod common;
-use common::*;
+use super::common::*;
 
 #[test]
 #[allow(
@@ -25,6 +24,7 @@ fn register_address_success() {
         let my_sighash_signer =
             signer_with_secret("827c39480011a29fa972ed8b671ee5a69edd13e24b5442ee2694514e56d15d88");
         let my_sighash = SigHash::from(&my_sighash_signer);
+        let mut tse = ToStateEntryCtx::new(3u64);
         let mut tx_fee = ccprocessor_rust::handler::constants::TX_FEE.clone();
         let mut request = TpProcessRequest {
             tip: 2,
@@ -57,7 +57,7 @@ fn register_address_success() {
             network: command.network.clone(),
             sighash: my_sighash.to_string(),
         };
-        let mut address = Address::with_prefix_key(
+        let mut address = AddressId::with_prefix_key(
             ccprocessor_rust::handler::constants::ADDR,
             &string!("ethereum", "myaddress", "rinkeby"),
         );
@@ -112,6 +112,7 @@ fn register_address_taken() {
         let other_sighash_signer =
             signer_with_secret("7586793549de011ef43bfac7cee149feb1f1de9a5f558c75ef46714b544f4fe3");
         let other_sighash = SigHash::from(&other_sighash_signer);
+        let mut tse = ToStateEntryCtx::new(4u64);
         let mut tx_fee = ccprocessor_rust::handler::constants::TX_FEE.clone();
         let mut request = TpProcessRequest {
             tip: 2,
@@ -124,12 +125,12 @@ fn register_address_taken() {
         };
         let command_guid_ = Guid::from(make_nonce());
         let mut address_proto = ccprocessor_rust::protos::Address {
-            blockchain: command.clone().blockchain.clone(),
-            value: command.clone().address.clone(),
-            network: command.clone().network.clone(),
+            blockchain: command.blockchain.clone(),
+            value: command.address.clone(),
+            network: command.network.clone(),
             sighash: my_sighash.clone().to_string(),
         };
-        let mut address = Address::with_prefix_key(
+        let mut address = AddressId::with_prefix_key(
             ccprocessor_rust::handler::constants::ADDR,
             &string!("ethereum", "myaddress", "rinkeby"),
         );
@@ -164,7 +165,7 @@ fn register_address_taken() {
         let other_sighash_wallet_id_ = WalletId::from(&other_sighash);
         let command_guid_ = Guid::from(make_nonce());
         {
-            let tx = command.clone().clone();
+            let tx = command.clone();
             let response = send_command_with_signer(tx, ports, None, &other_sighash_signer);
             assert_matches!(
                 complete_batch(&response.link, None),
