@@ -5,7 +5,7 @@ command = RegisterAddress {
     address: "myaddress".into(),
     network: "rinkeby".into(),
 };
-signer = Signer(my_sighash);
+signer = Signer!(my_sighash);
 result = pass;
 request = TpProcessRequest {
     tip: 2,
@@ -24,17 +24,17 @@ let address_proto = rust { crate::protos::Address {
         sighash: my_sighash.to_string(),
     }
 };
-let address = rust { Address::with_prefix_key(crate::handler::constants::ADDR, &string!("ethereum", "myaddress", "rinkeby")) };
+let address = rust { AddressId::with_prefix_key(crate::handler::constants::ADDR, &string!("ethereum", "myaddress", "rinkeby")) };
 
-let guid = Guid(command);
+let guid = Guid!(command);
 expect(
     sighash -> my_sighash,
-    guid -> Guid(command),
-    get balance at WalletId(my_sighash) -> Some(tx_fee),
+    guid -> Guid!(command),
+    get balance at WalletId!(my_sighash) -> Some(tx_fee),
     get state at address -> None, 
     set states {
         address.to_string() : address_proto.to_bytes(),
-        WalletId(my_sighash) : rust { wallet_with(Some(0)).unwrap() },
+        WalletId!(my_sighash) : rust { wallet_with(Some(0)).unwrap() },
         rust { make_fee(&guid, &my_sighash, Some(1)) }
     }
 );
@@ -48,7 +48,7 @@ command = RegisterAddress {
     address: "myaddress".into(),
     network: "rinkeby".into(),
 };
-signer = Signer(my_sighash);
+signer = Signer!(my_sighash);
 result = fail(err = "The address has been already registered");
 
 request = TpProcessRequest {
@@ -63,7 +63,7 @@ let address_proto = crate::protos::Address {
     sighash: my_sighash.to_string(),
 };
 let address = rust { 
-    Address::with_prefix_key(crate::handler::constants::ADDR, &string!("ethereum", "myaddress", "rinkeby")) 
+    AddressId::with_prefix_key(crate::handler::constants::ADDR, &string!("ethereum", "myaddress", "rinkeby")) 
 };
 
 
@@ -71,11 +71,11 @@ require(
     Wallet for my_sighash with amount = tx_fee,
     Wallet for other_sighash with amount = tx_fee,
     Guid for command,
-    send transaction { command.clone() } with signer = Signer(other_sighash),
+    send transaction { command.clone() } with signer = Signer!(other_sighash),
 );
 
 expect(
     sighash -> my_sighash,
-    get balance at WalletId(my_sighash) -> tx_fee,
+    get balance at WalletId!(my_sighash) -> tx_fee,
     get state at address -> Some(address_proto),
 );
