@@ -20,6 +20,7 @@ fn complete_repayment_order_success() {
     let collector_signer =
         signer_with_secret("0bf47d913365b3c163897b3a40a03db6c14c2c8637ac732d93552b3ce6dbfabe");
     let collector = SigHash::from(&collector_signer);
+    let mut tse = ToStateEntryCtx::new(5u64);
     let mut tx_fee = TX_FEE.clone();
     let mut request = TpProcessRequest {
         tip: 14,
@@ -44,17 +45,17 @@ fn complete_repayment_order_success() {
         fee_str: "0".into(),
         expiration: 10000.into(),
     };
-    let mut add_ask_order_guid = Guid::from(make_nonce());
+    let mut add_ask_order_guid = Guid::random();
     let mut ask_order_id =
-        Address::with_prefix_key(ASK_ORDER.clone(), add_ask_order_guid.clone().as_str());
+        AddressId::with_prefix_key(ASK_ORDER.clone(), add_ask_order_guid.clone().as_str());
     let mut ask_order = crate::protos::AskOrder {
-        blockchain: investor_address.clone().blockchain.clone(),
-        address: add_ask_order.clone().address_id.clone(),
-        amount: add_ask_order.clone().amount_str.clone(),
-        interest: add_ask_order.clone().interest.clone(),
-        maturity: add_ask_order.clone().maturity.clone(),
-        fee: add_ask_order.clone().fee_str.clone(),
-        expiration: add_ask_order.clone().expiration.into(),
+        blockchain: investor_address.blockchain.clone(),
+        address: add_ask_order.address_id.clone(),
+        amount: add_ask_order.amount_str.clone(),
+        interest: add_ask_order.interest.clone(),
+        maturity: add_ask_order.maturity.clone(),
+        fee: add_ask_order.fee_str.clone(),
+        expiration: add_ask_order.expiration.clone().into(),
         block: (request.tip - 8).to_string(),
         sighash: investor.clone().into(),
     };
@@ -66,17 +67,17 @@ fn complete_repayment_order_success() {
         fee_str: "0".into(),
         expiration: 10000.into(),
     };
-    let mut add_bid_order_guid = Guid::from(make_nonce());
+    let mut add_bid_order_guid = Guid::random();
     let mut bid_order_id =
-        Address::with_prefix_key(BID_ORDER.clone(), add_bid_order_guid.clone().as_str());
+        AddressId::with_prefix_key(BID_ORDER.clone(), add_bid_order_guid.clone().as_str());
     let mut bid_order = crate::protos::BidOrder {
-        blockchain: fundraiser_address.clone().blockchain.clone(),
+        blockchain: fundraiser_address.blockchain.clone(),
         address: fundraiser_address_id.clone().into(),
-        amount: add_bid_order.clone().amount_str.clone(),
-        interest: add_bid_order.clone().interest.clone(),
-        maturity: add_bid_order.clone().maturity.clone(),
-        fee: add_bid_order.clone().fee_str.clone(),
-        expiration: add_bid_order.clone().expiration.into(),
+        amount: add_bid_order.amount_str.clone(),
+        interest: add_bid_order.interest.clone(),
+        maturity: add_bid_order.maturity.clone(),
+        fee: add_bid_order.fee_str.clone(),
+        expiration: add_bid_order.expiration.clone().into(),
         block: (request.tip - 7).to_string(),
         sighash: fundraiser.clone().into(),
     };
@@ -85,14 +86,14 @@ fn complete_repayment_order_success() {
         bid_order_id: bid_order_id.clone().into(),
         expiration: 10000.into(),
     };
-    let mut add_offer_guid = Guid::from(make_nonce());
+    let mut add_offer_guid = Guid::random();
     let mut offer_id =
-        Address::with_prefix_key(OFFER.clone(), &string!(&ask_order_id, &bid_order_id));
+        AddressId::with_prefix_key(OFFER.clone(), &string!(&ask_order_id, &bid_order_id));
     let mut offer = crate::protos::Offer {
-        blockchain: investor_address.clone().blockchain.clone(),
+        blockchain: investor_address.blockchain.clone(),
         ask_order: ask_order_id.clone().into(),
         bid_order: bid_order_id.clone().into(),
-        expiration: add_offer.clone().expiration.into(),
+        expiration: add_offer.expiration.clone().into(),
         block: (request.tip - 6).to_string(),
         sighash: investor.clone().to_string(),
     };
@@ -100,16 +101,16 @@ fn complete_repayment_order_success() {
         offer_id: offer_id.clone().into(),
         expiration: 10000.into(),
     };
-    let mut deal_order_id = Address::with_prefix_key(DEAL_ORDER.clone(), &offer_id.clone());
+    let mut deal_order_id = AddressId::with_prefix_key(DEAL_ORDER.clone(), &offer_id.clone());
     let mut deal_order = crate::protos::DealOrder {
-        blockchain: offer.clone().blockchain,
-        src_address: ask_order.clone().address,
-        dst_address: bid_order.clone().address,
-        amount: bid_order.clone().amount,
-        interest: bid_order.clone().interest,
-        maturity: bid_order.clone().maturity,
-        fee: bid_order.clone().fee,
-        expiration: add_ask_order.clone().expiration.into(),
+        blockchain: offer.blockchain.clone(),
+        src_address: ask_order.address.clone(),
+        dst_address: bid_order.address.clone(),
+        amount: bid_order.amount.clone(),
+        interest: bid_order.interest.clone(),
+        maturity: bid_order.maturity.clone(),
+        fee: bid_order.fee.clone(),
+        expiration: add_ask_order.expiration.clone().into(),
         sighash: fundraiser.clone().to_string(),
         block: (request.tip - 5).to_string(),
         ..::core::default::Default::default()
@@ -119,7 +120,7 @@ fn complete_repayment_order_success() {
         order_id: deal_order_id.clone().into(),
         blockchain_tx_id: String::from("blockchaintxid"),
     };
-    let mut transfer_id = Address::with_prefix_key(
+    let mut transfer_id = AddressId::with_prefix_key(
         TRANSFER.clone(),
         &string!(
             &investor_address.blockchain,
@@ -128,12 +129,12 @@ fn complete_repayment_order_success() {
         ),
     );
     let mut transfer = crate::protos::Transfer {
-        blockchain: investor_address.clone().blockchain.clone(),
+        blockchain: investor_address.blockchain.clone(),
         dst_address: fundraiser_address_id.clone().to_string(),
         src_address: investor_address_id.clone().to_string(),
-        order: register_transfer.clone().order_id.clone(),
-        amount: deal_order.clone().amount,
-        tx: register_transfer.clone().blockchain_tx_id.clone(),
+        order: register_transfer.order_id.clone(),
+        amount: deal_order.amount.clone(),
+        tx: register_transfer.blockchain_tx_id.clone(),
         sighash: investor.clone().to_string(),
         block: (request.tip - 4).to_string(),
         processed: false,
@@ -151,9 +152,9 @@ fn complete_repayment_order_success() {
         processed: true,
         ..transfer.clone()
     };
-    let mut add_repayment_order_guid = Guid::from(make_nonce());
+    let mut add_repayment_order_guid = Guid::random();
     let mut repayment_order_id =
-        Address::with_prefix_key(REPAYMENT_ORDER.clone(), &add_repayment_order_guid.clone());
+        AddressId::with_prefix_key(REPAYMENT_ORDER.clone(), &add_repayment_order_guid.clone());
     let mut add_repayment_order = AddRepaymentOrder {
         deal_order_id: deal_order_id.clone().into(),
         address_id: collector_address_id.clone().into(),
@@ -161,13 +162,13 @@ fn complete_repayment_order_success() {
         expiration: 10000.into(),
     };
     let mut repayment_order = crate::protos::RepaymentOrder {
-        blockchain: collector_address.clone().blockchain,
+        blockchain: collector_address.blockchain.clone(),
         src_address: collector_address_id.clone().into(),
-        dst_address: deal_order.clone().src_address,
-        amount: add_repayment_order.clone().amount_str,
-        expiration: add_repayment_order.clone().expiration.into(),
+        dst_address: deal_order.src_address.clone(),
+        amount: add_repayment_order.amount_str.clone(),
+        expiration: add_repayment_order.expiration.clone().into(),
         block: (request.tip - 2).to_string(),
-        deal: add_repayment_order.clone().deal_order_id,
+        deal: add_repayment_order.deal_order_id.clone(),
         sighash: collector.clone().into(),
         ..::core::default::Default::default()
     };
@@ -175,7 +176,7 @@ fn complete_repayment_order_success() {
         repayment_order_id: repayment_order_id.clone().into(),
     };
     let mut updated_repayment_order = crate::protos::RepaymentOrder {
-        previous_owner: investor.clone().clone().into(),
+        previous_owner: investor.clone().into(),
         ..repayment_order.clone()
     };
     let mut completed_repayment_deal_order = crate::protos::DealOrder {
@@ -194,12 +195,12 @@ fn complete_repayment_order_success() {
         ctx.expect_sighash().return_once(move |_| Ok(sig));
     }
     {
-        let guid = command_guid_.clone().clone();
+        let guid = command_guid_.clone();
         ctx.expect_guid().returning(move |_| guid.clone());
     }
     {
-        let address = investor_wallet_id_.clone().clone();
-        let ret = tx_fee.clone().clone();
+        let address = investor_wallet_id_.clone();
+        let ret = tx_fee.clone();
         tx_ctx
             .expect_get_state_entry()
             .withf(move |addr| address.as_str() == addr)

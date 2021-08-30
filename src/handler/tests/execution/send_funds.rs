@@ -17,6 +17,7 @@ fn send_funds_success() {
     let fundraiser_sighash_signer =
         signer_with_secret("48b0ae97607427a8550e4da5edc8da0a04617adde25c98a405a0c47114cdf69e");
     let fundraiser_sighash = SigHash::from(&fundraiser_sighash_signer);
+    let mut tse = ToStateEntryCtx::new(4u64);
     let mut tx_fee = TX_FEE.clone();
     let mut request = TpProcessRequest {
         tip: 3,
@@ -39,20 +40,20 @@ fn send_funds_success() {
         ctx.expect_sighash().return_once(move |_| Ok(sig));
     }
     {
-        let guid = guid.clone().clone();
+        let guid = guid.clone();
         ctx.expect_guid().returning(move |_| guid.clone());
     }
     {
-        let address = my_sighash_wallet_id_.clone().clone();
-        let ret = amount_needed.clone().clone();
+        let address = my_sighash_wallet_id_.clone();
+        let ret = amount_needed.clone();
         tx_ctx
             .expect_get_state_entry()
             .withf(move |addr| address.as_str() == addr)
             .return_once(move |_| Ok(wallet_with(Option::from(ret))));
     }
     {
-        let address = fundraiser_sighash_wallet_id_.clone().clone();
-        let ret = 0.clone();
+        let address = fundraiser_sighash_wallet_id_.clone();
+        let ret = 0;
         tx_ctx
             .expect_get_state_entry()
             .withf(move |addr| address.as_str() == addr)
@@ -70,7 +71,8 @@ fn send_funds_success() {
                 wallet_with(Some(1)).unwrap().into(),
             ),
             (
-                Address::with_prefix_key(crate::handler::constants::FEE, guid.as_str()).to_string(),
+                AddressId::with_prefix_key(crate::handler::constants::FEE, guid.as_str())
+                    .to_string(),
                 crate::protos::Fee {
                     sighash: my_sighash.clone().into(),
                     block: 2u64.to_string(),
@@ -100,8 +102,12 @@ fn send_funds_cannot_afford_fee() {
     let fundraiser_sighash_signer =
         signer_with_secret("544f4fe3edb3e8e44d4a1f0050ce03a729b2da887b644e95ec6bf6a0cfdbf0f4");
     let fundraiser_sighash = SigHash::from(&fundraiser_sighash_signer);
+    let mut tse = ToStateEntryCtx::new(3u64);
     let mut tx_fee = TX_FEE.clone();
-    let mut request = TpProcessRequest::default();
+    let mut request = TpProcessRequest {
+        tip: tse.tip().into(),
+        ..Default::default()
+    };
     let mut tx_ctx = MockTransactionContext::default();
     let mut ctx = MockHandlerContext::default();
     let mut command = SendFunds {
@@ -116,8 +122,8 @@ fn send_funds_cannot_afford_fee() {
         ctx.expect_sighash().return_once(move |_| Ok(sig));
     }
     {
-        let address = my_sighash_wallet_id_.clone().clone();
-        let ret = Some(1).clone();
+        let address = my_sighash_wallet_id_.clone();
+        let ret = Some(1);
         tx_ctx
             .expect_get_state_entry()
             .withf(move |addr| address.as_str() == addr)
@@ -143,8 +149,12 @@ fn send_funds_cannot_afford_amount() {
     let fundraiser_sighash_signer =
         signer_with_secret("f5cc8af9d13b3190729fb196a385e5b28663ad538724fdadf7ef25ff20c38b31");
     let fundraiser_sighash = SigHash::from(&fundraiser_sighash_signer);
+    let mut tse = ToStateEntryCtx::new(3u64);
     let mut tx_fee = TX_FEE.clone();
-    let mut request = TpProcessRequest::default();
+    let mut request = TpProcessRequest {
+        tip: tse.tip().into(),
+        ..Default::default()
+    };
     let mut tx_ctx = MockTransactionContext::default();
     let mut ctx = MockHandlerContext::default();
     let mut command = SendFunds {
@@ -159,8 +169,8 @@ fn send_funds_cannot_afford_amount() {
         ctx.expect_sighash().return_once(move |_| Ok(sig));
     }
     {
-        let address = my_sighash_wallet_id_.clone().clone();
-        let ret = tx_fee.clone().clone();
+        let address = my_sighash_wallet_id_.clone();
+        let ret = tx_fee.clone();
         tx_ctx
             .expect_get_state_entry()
             .withf(move |addr| address.as_str() == addr)
@@ -183,8 +193,12 @@ fn send_funds_to_self() {
     let my_sighash_signer =
         signer_with_secret("9628e0b771d0bc1ecd7975011f18d46dab673de62997297b1f40985f6a166dac");
     let my_sighash = SigHash::from(&my_sighash_signer);
+    let mut tse = ToStateEntryCtx::new(2u64);
     let mut tx_fee = TX_FEE.clone();
-    let mut request = TpProcessRequest::default();
+    let mut request = TpProcessRequest {
+        tip: tse.tip().into(),
+        ..Default::default()
+    };
     let mut tx_ctx = MockTransactionContext::default();
     let mut ctx = MockHandlerContext::default();
     let mut command = SendFunds {
