@@ -79,17 +79,6 @@ fn init_logs() {
     })
 }
 
-fn wallet_with(balance: Option<impl Into<Integer> + Clone>) -> Option<Vec<u8>> {
-    balance.map(|b| {
-        let wallet = crate::protos::Wallet {
-            amount: b.into().to_string(),
-        };
-        let mut buf = Vec::with_capacity(wallet.encoded_len());
-        wallet.encode(&mut buf).unwrap();
-        buf
-    })
-}
-
 macro_rules! expect {
     ($id: ident, $fun: ident where $c: expr, returning $ret: expr, $count: literal times) => {
 
