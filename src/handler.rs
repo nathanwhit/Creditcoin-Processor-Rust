@@ -523,7 +523,7 @@ impl CCTransaction for RegisterAddress {
         let (wallet_id, wallet) = charge(ctx, tx_ctx, &my_sighash)?;
 
         let key = string!(&self.blockchain, &addr_str_lower, &self.network);
-        let id = Address::with_prefix_key(ADDR, &key);
+        let id = AddressId::with_prefix_key(ADDR, &key);
 
         if try_get_state_data(tx_ctx, &id)?.is_some() {
             bail_transaction!(
@@ -625,7 +625,7 @@ impl CCTransaction for RegisterTransfer {
         let blockchain = src_address.blockchain;
         let network = src_address.network;
         let key = string!(&blockchain, &blockchain_tx_id, &network);
-        let transfer_id = Address::with_prefix_key(TRANSFER, &key);
+        let transfer_id = AddressId::with_prefix_key(TRANSFER, &key);
         let state_data = try_get_state_data(tx_ctx, &transfer_id)?;
         if state_data.is_some() {
             bail_transaction!(
@@ -693,7 +693,7 @@ impl CCTransaction for AddAskOrder {
 
         let guid = ctx.guid(request);
 
-        let id = Address::with_prefix_key(ASK_ORDER, guid.as_str());
+        let id = AddressId::with_prefix_key(ASK_ORDER, guid.as_str());
         if try_get_state_data(tx_ctx, &id)?.is_some() {
             bail_transaction!(
                 "Duplicate id",
@@ -747,7 +747,7 @@ impl CCTransaction for AddBidOrder {
         let (wallet_id, wallet) = charge(ctx, tx_ctx, &my_sighash)?;
 
         let guid = ctx.guid(request);
-        let id = Address::with_prefix_key(BID_ORDER, &guid);
+        let id = AddressId::with_prefix_key(BID_ORDER, &guid);
         let state_data = try_get_state_data(tx_ctx, &id)?;
         if state_data.is_some() {
             bail_transaction!(
@@ -800,7 +800,7 @@ impl CCTransaction for AddOffer {
 
         let (wallet_id, wallet) = charge(ctx, tx_ctx, &my_sighash)?;
 
-        let id = Address::with_prefix_key(
+        let id = AddressId::with_prefix_key(
             OFFER,
             &string!(self.ask_order_id.as_str(), self.bid_order_id.as_str()),
         );
@@ -949,7 +949,7 @@ impl CCTransaction for AddDealOrder {
         tx_ctx: &dyn TransactionContext,
         ctx: &mut HandlerContext,
     ) -> TxnResult<()> {
-        let id = Address::with_prefix_key(DEAL_ORDER, &self.offer_id);
+        let id = AddressId::with_prefix_key(DEAL_ORDER, &self.offer_id);
 
         let state_data = try_get_state_data(tx_ctx, &id)?;
 
@@ -1674,7 +1674,7 @@ impl CCTransaction for AddRepaymentOrder {
 
         let guid = ctx.guid(request);
 
-        let id = Address::with_prefix_key(REPAYMENT_ORDER, &guid);
+        let id = AddressId::with_prefix_key(REPAYMENT_ORDER, &guid);
 
         let state_data = try_get_state_data(tx_ctx, &id)?;
 
@@ -1934,7 +1934,7 @@ impl CCTransaction for CollectCoins {
         tx_ctx: &dyn TransactionContext,
         ctx: &mut HandlerContext,
     ) -> TxnResult<()> {
-        let id = Address::with_prefix_key(ERC20, &self.blockchain_tx_id);
+        let id = AddressId::with_prefix_key(ERC20, &self.blockchain_tx_id);
         let state_data = try_get_state_data(tx_ctx, &id)?;
 
         if state_data.is_some() {

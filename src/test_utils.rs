@@ -1,8 +1,9 @@
 #![cfg(any(test, feature = "integration-testing"))]
 
 use crate::ext::MessageExt;
-use crate::handler::types::{Address, Guid, SigHash};
-use crate::handler::*;
+use crate::handler::constants;
+use crate::handler::types::{AddressId, BlockNum, Guid, SigHash, WalletId};
+use crate::{handler::*, protos, string};
 use prost::Message;
 use rug::Integer;
 use sawtooth_sdk::signing::{create_context, secp256k1::Secp256k1PrivateKey, Signer};
@@ -250,7 +251,7 @@ pub fn signer_with_secret(secret: &str) -> Signer<'static> {
 }
 
 pub fn make_fee(guid: &Guid, sighash: &SigHash, block: Option<u64>) -> (String, Vec<u8>) {
-    let fee_id = Address::with_prefix_key(crate::handler::constants::FEE, guid.as_str());
+    let fee_id = AddressId::with_prefix_key(constants::FEE, guid.as_str());
     let fee = crate::protos::Fee {
         sighash: sighash.clone().into(),
         block: block.unwrap_or_default().to_string(),
@@ -271,11 +272,8 @@ pub fn make_nonce() -> Nonce {
     nonce[..16].try_into().unwrap()
 }
 
-pub fn address_id_for(address: &str) -> Address {
-    Address::with_prefix_key(
-        crate::handler::constants::ADDR,
-        &crate::string!("ethereum", address, "rinkeby"),
-    )
+pub fn address_id_for(address: &str) -> AddressId {
+    AddressId::with_prefix_key(constants::ADDR, &string!("ethereum", address, "rinkeby"))
 }
 
 pub fn register_address_for(value: &str) -> RegisterAddress {

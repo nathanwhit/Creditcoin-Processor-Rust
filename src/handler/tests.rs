@@ -44,7 +44,8 @@ use crate::handler::utils::{calc_interest, sha512_id};
 use crate::{protos, string};
 
 use super::context::mocked::MockHandlerContext;
-use super::types::{Address, BlockNum, Credo, CurrencyAmount, TxnResult};
+use super::types::{AddressId, BlockNum, Credo, CurrencyAmount, TxnResult};
+use super::AddAskOrder;
 use super::AddBidOrder;
 use super::AddDealOrder;
 use super::AddOffer;

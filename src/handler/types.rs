@@ -128,6 +128,12 @@ impl From<SigHash> for WalletId {
     }
 }
 
+impl From<WalletId> for AddressId {
+    fn from(id: WalletId) -> Self {
+        AddressId(id.0)
+    }
+}
+
 impl Deref for WalletId {
     type Target = String;
 
@@ -149,6 +155,12 @@ pub struct Guid(pub String);
 impl From<&str> for Guid {
     fn from(s: &str) -> Self {
         Guid(s.to_string())
+    }
+}
+
+impl AsRef<str> for Guid {
+    fn as_ref(&self) -> &str {
+        self.as_str()
     }
 }
 
@@ -179,11 +191,11 @@ impl Deref for Guid {
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, From, Into, Default)]
 #[cfg_attr(test, derive(serde::Serialize))]
-pub struct Address(pub String);
+pub struct AddressId(pub String);
 
-impl Address {
-    pub fn with_prefix_key(prefix: &str, key: &str) -> Self {
-        let id = sha512_id(key);
+impl AddressId {
+    pub fn with_prefix_key(prefix: &str, key: impl AsRef<str>) -> Self {
+        let id = sha512_id(key.as_ref());
         let addr = string!(NAMESPACE_PREFIX, prefix, &id);
         assert_eq!(addr.len(), MERKLE_ADDRESS_LENGTH);
         Self(addr)
@@ -227,7 +239,7 @@ impl Address {
     }
 }
 
-impl Deref for Address {
+impl Deref for AddressId {
     type Target = String;
 
     fn deref(&self) -> &Self::Target {
@@ -235,15 +247,26 @@ impl Deref for Address {
     }
 }
 
-impl AsRef<str> for Address {
+impl AsRef<str> for AddressId {
     fn as_ref(&self) -> &str {
         self.as_str()
     }
 }
 
-impl From<&Address> for String {
-    fn from(address: &Address) -> String {
+impl From<&AddressId> for String {
+    fn from(address: &AddressId) -> String {
         address.0.clone()
+    }
+}
+
+impl From<&String> for AddressId {
+    fn from(s: &String) -> Self {
+        Self(s.into())
+    }
+}
+impl From<&str> for AddressId {
+    fn from(s: &str) -> Self {
+        Self(s.into())
     }
 }
 
