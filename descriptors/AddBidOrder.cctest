@@ -12,16 +12,16 @@ command = AddBidOrder {
     fee_str: "1".into(),
     expiration: 10000.into(),
 }
-signer = Signer(fundraiser)
+signer = Signer!(fundraiser)
 request = TpProcessRequest { tip: 3, ..default }
-let bid_order_id = Address::with_prefix_key(BID_ORDER, Guid(command).as_str());
+let bid_order_id = AddressId::with_prefix_key(BID_ORDER, Guid!(command).as_str());
 
 require(
     Wallet for fundraiser with amount = rust { tx_fee * 2 },
-    send transaction { register_address_for("fundraiseraddress") } with signer = Signer(fundraiser),
+    send transaction { register_address_for("fundraiseraddress") } with signer = Signer!(fundraiser),
 )
 
-let address_proto = address_for("fundraiseraddress", &Sighash(fundraiser));
+let address_proto = address_for("fundraiseraddress", &SigHash!(fundraiser));
 
 let bid_order = crate::protos::BidOrder {
     blockchain: address_proto.blockchain.clone(),
@@ -37,14 +37,14 @@ let bid_order = crate::protos::BidOrder {
 
 expect(
     sighash -> fundraiser,
-    guid -> Guid(command),
-    guid -> Guid(command),
-    get balance at WalletId(fundraiser) -> tx_fee,
+    guid -> Guid!(command),
+    guid -> Guid!(command),
+    get balance at WalletId!(fundraiser) -> tx_fee,
     get state at bid_order_id -> None,
     get state at address_id -> Some(address_proto),
     set states {
-        WalletId(fundraiser) : wallet_with(Some(0)).unwrap(),
+        WalletId!(fundraiser) : wallet_with(Some(0)).unwrap(),
         bid_order_id.to_string() : bid_order.to_bytes(),
-        make_fee(&Guid(command), &fundraiser, Some(2)),
+        make_fee(&Guid!(command), &fundraiser, Some(2)),
     }
 )

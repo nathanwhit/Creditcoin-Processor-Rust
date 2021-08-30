@@ -4,7 +4,7 @@ command = SendFunds {
     amount: rust { 1.into() },
     sighash: fundraiser_sighash.into()
 };
-signer = Signer(my_sighash);
+signer = Signer!(my_sighash);
 result = pass;
 request = rust { TpProcessRequest {
         tip: 3,
@@ -20,17 +20,17 @@ require (
     Wallet for fundraiser_sighash with amount = 0,
     Guid for command
 );
-let guid = Guid(command);
+let guid = Guid!(command);
 expect(
     sighash -> my_sighash,
     guid -> guid,
-    get balance at WalletId(my_sighash) -> amount_needed,
-    get balance at WalletId(fundraiser_sighash) -> 0,
+    get balance at WalletId!(my_sighash) -> amount_needed,
+    get balance at WalletId!(fundraiser_sighash) -> 0,
     set states {
-        WalletId(my_sighash) : rust { wallet_with(Some(0)).unwrap() },
-        WalletId(fundraiser_sighash) : rust { wallet_with(Some(1)).unwrap() },
+        WalletId!(my_sighash) : rust { wallet_with(Some(0)).unwrap() },
+        WalletId!(fundraiser_sighash) : rust { wallet_with(Some(1)).unwrap() },
         rust { 
-            Address::with_prefix_key(crate::handler::constants::FEE, guid.as_str() ) 
+            AddressId::with_prefix_key(crate::handler::constants::FEE, guid.as_str() ) 
         } : rust { 
             crate::protos::Fee {
                 sighash: my_sighash.clone().into(),
@@ -48,7 +48,7 @@ command = SendFunds {
     amount: rust { 1.into() },
     sighash: fundraiser_sighash.into(),
 };
-signer = Signer(my_sighash);
+signer = Signer!(my_sighash);
 result = fail(err = "Insufficient funds");
 require(
     Wallet for my_sighash with amount = 1,
@@ -56,7 +56,7 @@ require(
 );
 expect(
     sighash -> my_sighash,
-    get balance at WalletId(my_sighash) -> Some(1),
+    get balance at WalletId!(my_sighash) -> Some(1),
 );
 
 ---
@@ -67,7 +67,7 @@ command = SendFunds {
     amount: rust { 1.into() },
     sighash: fundraiser_sighash.into()
 };
-signer = Signer(my_sighash);
+signer = Signer!(my_sighash);
 result = fail(err = "Insufficient funds");
 
 require (
@@ -77,7 +77,7 @@ require (
 
 expect (
     sighash -> my_sighash,
-    get balance at WalletId(my_sighash) -> tx_fee,
+    get balance at WalletId!(my_sighash) -> tx_fee,
 );
 
 ---
@@ -88,7 +88,7 @@ command = SendFunds {
     amount: rust { 1.into() },
     sighash: my_sighash.into(),
 };
-signer = Signer(my_sighash);
+signer = Signer!(my_sighash);
 result = fail(err = "Invalid destination");
 require(
     Guid for command

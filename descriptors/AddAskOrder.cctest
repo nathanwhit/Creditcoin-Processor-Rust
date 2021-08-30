@@ -4,6 +4,17 @@ result = pass
 
 let address_id = address_id_for("investoraddress")
 
+let add_ask_order = AddAskOrder {
+    address_id: address_id.into(),
+    amount_str: "1000".into(),
+    interest: "100".into(),
+    maturity: "10".into(),
+    fee_str: "1".into(),
+    expiration: 10000.into(),
+};
+
+// let (ask_order_id, ask_order) = 
+
 command = AddAskOrder {
     address_id: address_id.into(),
     amount_str: "1000".into(),
@@ -12,16 +23,16 @@ command = AddAskOrder {
     fee_str: "1".into(),
     expiration: 10000.into(),
 }
-signer = Signer(investor)
+signer = Signer!(investor)
 request = TpProcessRequest { tip: 3, ..default }
-let ask_order_id = Address::with_prefix_key(ASK_ORDER, Guid(command).as_str());
+let ask_order_id = AddressId::with_prefix_key(ASK_ORDER, Guid!(command).as_str());
 
 require(
     Wallet for investor with amount = rust { tx_fee * 2 },
-    send transaction { register_address_for("investoraddress") } with signer = Signer(investor),
+    send transaction { register_address_for("investoraddress") } with signer = Signer!(investor),
 )
 
-let address_proto = address_for("investoraddress", &Sighash(investor));
+let address_proto = address_for("investoraddress", &SigHash!(investor));
 
 let ask_order = crate::protos::AskOrder {
     blockchain: address_proto.blockchain.clone(),
@@ -36,15 +47,15 @@ let ask_order = crate::protos::AskOrder {
 };
 
 expect(
-    sighash -> Sighash(investor),
-    guid -> Guid(command),
-    guid -> Guid(command),
-    get balance at WalletId(investor) -> tx_fee,
+    sighash -> SigHash!(investor),
+    guid -> Guid!(command),
+    guid -> Guid!(command),
+    get balance at WalletId!(investor) -> tx_fee,
     get state at ask_order_id -> None,
     get state at address_id -> Some(address_proto),
     set states {
-        WalletId(investor) : wallet_with(Some(0)).unwrap(),
+        WalletId!(investor) : wallet_with(Some(0)).unwrap(),
         ask_order_id.to_string() : ask_order.to_bytes(),
-        make_fee(&Guid(command), &Sighash(investor), Some(2)),
+        make_fee(&Guid!(command), &SigHash!(investor), Some(2)),
     }
 )
