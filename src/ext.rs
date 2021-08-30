@@ -70,6 +70,7 @@ impl ErrorExt for anyhow::Error {
 
     fn log_err(self) -> Self {
         log::error!("An error occured: {:#}", &self);
+        log::debug!("Full error traceback: {:?}", &self);
         self
     }
 }
@@ -83,6 +84,7 @@ impl ErrorExt for ApplyError {
 
     fn log_err(self) -> Self {
         log::error!("An error occurred: {:#}", &self);
+        log::debug!("Full error traceback: {:?}", &self);
         self
     }
 }
@@ -103,6 +105,7 @@ impl<T> ErrorExt for TxnResult<T> {
     fn log_err(self) -> Self {
         if let Err(e) = &self {
             log::error!("An error occurred: {:#}", &e);
+            log::debug!("Full error traceback: {:?}", &e);
         }
         self
     }
