@@ -6,20 +6,26 @@ build-release:
 
 update-tests:
     #!/usr/bin/env sh
-    version='0.2'
+    version='0.3'
     if ! [ "$(cctestgen --version | grep -F $version)" ]; then
         cargo install --force --git https://github.com/nathanwhit/cctestgen
     fi
+    integration_main=./tests/integration/main.rs
+    echo 'pub mod common;' > $integration_main
     for file in ./descriptors/*;
     do 
         base=$(basename $file)
-        testname="$(echo $base | sed 's/\([A-Z]\)/_\L\1/g;s/^_//').rs"
-        testfile=./tests/$testname
-        unittestfile=./src/handler/tests/execution/$testname
-        /home/nathanw/cctestgen/target/release/cctestgen --mode=integration $file > $testfile
-        /home/nathanw/cctestgen/target/release/cctestgen --mode=unit $file > $unittestfile
+        # convert from PascalCase to snake_case
+        filename="$(echo $base | sed 's/\([A-Z]\)/_\L\1/g;s/^_//')"
+        testname="${filename%.*}"
+        testfile=./tests/integration/$testname.rs
+        unittestfile=./src/handler/tests/execution/$testname.rs
+        cctestgen --mode=integration $file > $testfile
+        cctestgen --mode=unit $file > $unittestfile
+        echo "mod ${testname};\n" >> $integration_main
     done
     cargo fmt
+    # cargo clippy --fix --allow-dirty
 
 integration_options := "'old-sawtooth integration-testing'"
 
@@ -31,3 +37,5 @@ unit-test: update-tests
 
 test: update-tests
     cargo test --features {{integration_options}} --no-fail-fast
+coverage: update-tests
+    cargo llvm-cov --features {{integration_options}} --no-fail-fast --html
