@@ -303,3 +303,476 @@ pub fn wallet_with(balance: Option<impl Into<Integer> + Clone>) -> Option<Vec<u8
         buf
     })
 }
+
+impl Guid {
+    pub fn random() -> Guid {
+        Guid::from(make_nonce())
+    }
+    pub fn new() -> Guid {
+        Guid::random()
+    }
+}
+
+pub trait ToAddressId: Sized {
+    type Args;
+    fn to_address_id(&self, args: Self::Args) -> AddressId;
+}
+
+impl protos::Address {
+    pub fn to_address_id(&self) -> AddressId {
+        <Self as ToAddressId>::to_address_id(self, ())
+    }
+}
+
+impl ToAddressId for protos::Address {
+    type Args = ();
+
+    fn to_address_id(&self, _args: ()) -> AddressId {
+        let key = string!(&self.blockchain, &self.value.to_lowercase(), &self.network);
+        AddressId::with_prefix_key(constants::ADDR, &key)
+    }
+}
+
+pub struct AskOrderIdArgs {
+    pub add_ask_order_guid: Guid,
+}
+
+impl ToAddressId for protos::AskOrder {
+    type Args = AskOrderIdArgs;
+
+    fn to_address_id(&self, args: Self::Args) -> AddressId {
+        AddressId::with_prefix_key(constants::ASK_ORDER, args.add_ask_order_guid.as_str())
+    }
+}
+
+pub struct BidOrderIdArgs {
+    pub add_bid_order_guid: Guid,
+}
+
+impl ToAddressId for protos::BidOrder {
+    type Args = BidOrderIdArgs;
+
+    fn to_address_id(&self, args: Self::Args) -> AddressId {
+        AddressId::with_prefix_key(constants::BID_ORDER, args.add_bid_order_guid.as_str())
+    }
+}
+
+pub struct DealOrderIdArgs {
+    pub offer_id: AddressId,
+}
+
+impl ToAddressId for protos::DealOrder {
+    type Args = DealOrderIdArgs;
+
+    fn to_address_id(&self, args: Self::Args) -> AddressId {
+        AddressId::with_prefix_key(constants::DEAL_ORDER, args.offer_id.as_str())
+    }
+}
+
+pub struct FeeIdArgs {
+    pub txn_guid: Guid,
+}
+
+impl ToAddressId for protos::Fee {
+    type Args = FeeIdArgs;
+
+    fn to_address_id(&self, args: Self::Args) -> AddressId {
+        AddressId::with_prefix_key(constants::FEE, args.txn_guid)
+    }
+}
+
+pub struct OfferIdArgs {
+    pub ask_order_id: AddressId,
+    pub bid_order_id: AddressId,
+}
+
+impl ToAddressId for protos::Offer {
+    type Args = OfferIdArgs;
+
+    fn to_address_id(&self, args: Self::Args) -> AddressId {
+        let OfferIdArgs {
+            ask_order_id,
+            bid_order_id,
+        } = args;
+        let key = string!(ask_order_id, bid_order_id);
+        AddressId::with_prefix_key(constants::OFFER, &key)
+    }
+}
+
+pub struct RepaymentOrderIdArgs {
+    pub add_repayment_order_guid: Guid,
+}
+
+impl ToAddressId for protos::RepaymentOrder {
+    type Args = RepaymentOrderIdArgs;
+
+    fn to_address_id(&self, args: Self::Args) -> AddressId {
+        AddressId::with_prefix_key(constants::REPAYMENT_ORDER, args.add_repayment_order_guid)
+    }
+}
+
+pub struct TransferIdArgs {
+    pub network: String,
+}
+
+impl ToAddressId for protos::Transfer {
+    type Args = TransferIdArgs;
+
+    fn to_address_id(&self, args: Self::Args) -> AddressId {
+        let key = string!(&self.blockchain, &self.tx, &args.network);
+        AddressId::with_prefix_key(constants::TRANSFER, &key)
+    }
+}
+
+pub enum WalletIdArg {
+    WalletId(WalletId),
+    SigHash(SigHash),
+}
+
+impl ToAddressId for protos::Wallet {
+    type Args = WalletIdArg;
+
+    fn to_address_id(&self, args: Self::Args) -> AddressId {
+        match args {
+            WalletIdArg::WalletId(id) => id.into(),
+            WalletIdArg::SigHash(sig) => sig.to_wallet_id().into(),
+        }
+    }
+}
+
+pub type StateData = Vec<u8>;
+
+#[derive(Clone, Debug)]
+pub struct ToStateEntryCtx {
+    block: BlockNum,
+}
+
+impl ToStateEntryCtx {
+    pub fn tip(&self) -> BlockNum {
+        (self.block - 1).unwrap()
+    }
+    pub fn new(block: impl Into<BlockNum>) -> Self {
+        Self {
+            block: block.into(),
+        }
+    }
+    pub fn inc_tip(&mut self) {
+        self.block += BlockNum(1);
+    }
+    pub fn state_entry_from<T: ToStateEntry>(
+        &mut self,
+        tx: T,
+        args: <T as ToStateEntry>::Args,
+    ) -> (AddressId, <T as ToStateEntry>::Output) {
+        let res = tx.to_state_entry(args, &*self);
+        self.inc_tip();
+        res
+    }
+}
+
+impl Default for ToStateEntryCtx {
+    fn default() -> Self {
+        Self::new(1)
+    }
+}
+
+pub trait ToStateEntry {
+    type Args;
+    type Output: prost::Message + Default;
+
+    fn to_state_entry(&self, args: Self::Args, ctx: &ToStateEntryCtx) -> (AddressId, Self::Output);
+
+    fn to_state(&self, args: Self::Args, ctx: &ToStateEntryCtx) -> (AddressId, StateData) {
+        let (addr, state) = self.to_state_entry(args, ctx);
+        (addr, state.to_bytes())
+    }
+}
+
+// impl ToStateEntry for SendFunds {
+//     type Args;
+
+//     type Output;
+
+//     fn to_state_entry(&self, args: Self::Args) -> (AddressId, Self::Output) {
+//         todo!()
+//     }
+// }
+
+impl ToStateEntry for RegisterAddress {
+    type Args = SigHash;
+
+    type Output = protos::Address;
+
+    fn to_state_entry(
+        &self,
+        sighash: SigHash,
+        _ctx: &ToStateEntryCtx,
+    ) -> (AddressId, Self::Output) {
+        let address = protos::Address {
+            blockchain: self.blockchain.clone(),
+            value: self.address.clone(),
+            network: self.network.clone(),
+            sighash: sighash.into(),
+        };
+
+        (address.to_address_id(), address)
+    }
+}
+
+pub enum TransferKind {
+    DealOrder(protos::DealOrder),
+    RepaymentOrder(protos::RepaymentOrder),
+}
+
+pub struct RegisterTransferArgs {
+    pub kind: TransferKind,
+    pub src_address: protos::Address,
+    pub src_sighash: SigHash,
+}
+
+impl ToStateEntry for RegisterTransfer {
+    type Args = RegisterTransferArgs;
+
+    type Output = protos::Transfer;
+
+    fn to_state_entry(&self, args: Self::Args, ctx: &ToStateEntryCtx) -> (AddressId, Self::Output) {
+        let (src_address_id, dest_address_id, amount) = match args.kind {
+            TransferKind::DealOrder(order) if self.gain == 0 => {
+                (order.src_address, order.dst_address, order.amount)
+            }
+            TransferKind::DealOrder(order) => (order.dst_address, order.src_address, order.amount),
+            TransferKind::RepaymentOrder(order) => {
+                (order.src_address, order.dst_address, order.amount)
+            }
+        };
+        let transfer = protos::Transfer {
+            blockchain: args.src_address.blockchain,
+            src_address: src_address_id,
+            dst_address: dest_address_id,
+            order: self.order_id.clone(),
+            amount,
+            tx: self.blockchain_tx_id.clone(),
+            block: ctx.tip().to_string(),
+            processed: false,
+            sighash: args.src_sighash.into(),
+        };
+        (
+            transfer.to_address_id(TransferIdArgs {
+                network: args.src_address.network,
+            }),
+            transfer,
+        )
+    }
+}
+
+pub struct AddAskOrderArgs {
+    pub guid: Guid,
+    pub address: protos::Address,
+    pub sighash: SigHash,
+}
+
+impl ToStateEntry for AddAskOrder {
+    type Args = AddAskOrderArgs;
+
+    type Output = protos::AskOrder;
+
+    fn to_state_entry(&self, args: Self::Args, ctx: &ToStateEntryCtx) -> (AddressId, Self::Output) {
+        let AddAskOrder {
+            address_id,
+            amount_str,
+            interest,
+            maturity,
+            fee_str,
+            expiration,
+        } = self.clone();
+
+        let ask_order = protos::AskOrder {
+            address: address_id,
+            blockchain: args.address.blockchain,
+            amount: amount_str,
+            interest,
+            maturity,
+            fee: fee_str,
+            expiration: expiration.into(),
+            block: ctx.tip().to_string(),
+            sighash: args.sighash.into(),
+        };
+
+        (
+            ask_order.to_address_id(AskOrderIdArgs {
+                add_ask_order_guid: args.guid,
+            }),
+            ask_order,
+        )
+    }
+}
+
+pub struct AddBidOrderArgs {
+    pub guid: Guid,
+    pub address: protos::Address,
+    pub sighash: SigHash,
+}
+
+impl ToStateEntry for AddBidOrder {
+    type Args = AddBidOrderArgs;
+
+    type Output = protos::BidOrder;
+
+    fn to_state_entry(&self, args: Self::Args, ctx: &ToStateEntryCtx) -> (AddressId, Self::Output) {
+        let AddBidOrder {
+            address_id,
+            amount_str,
+            interest,
+            maturity,
+            fee_str,
+            expiration,
+        } = self.clone();
+
+        let bid_order = protos::BidOrder {
+            address: address_id,
+            blockchain: args.address.blockchain,
+            amount: amount_str,
+            interest,
+            maturity,
+            fee: fee_str,
+            expiration: expiration.into(),
+            block: ctx.tip().to_string(),
+            sighash: args.sighash.into(),
+        };
+
+        (
+            bid_order.to_address_id(BidOrderIdArgs {
+                add_bid_order_guid: args.guid,
+            }),
+            bid_order,
+        )
+    }
+}
+
+pub struct AddOfferArgs {
+    pub src_address: protos::Address,
+    pub sighash: SigHash,
+}
+
+impl ToStateEntry for AddOffer {
+    type Args = AddOfferArgs;
+
+    type Output = protos::Offer;
+
+    fn to_state_entry(&self, args: Self::Args, ctx: &ToStateEntryCtx) -> (AddressId, Self::Output) {
+        let AddOffer {
+            ask_order_id,
+            bid_order_id,
+            expiration,
+        } = self.clone();
+
+        let offer = protos::Offer {
+            blockchain: args.src_address.blockchain,
+            ask_order: ask_order_id.clone(),
+            bid_order: bid_order_id.clone(),
+            expiration: expiration.into(),
+            block: ctx.tip().to_string(),
+            sighash: args.sighash.into(),
+        };
+
+        (
+            offer.to_address_id(OfferIdArgs {
+                ask_order_id: ask_order_id.into(),
+                bid_order_id: bid_order_id.into(),
+            }),
+            offer,
+        )
+    }
+}
+
+pub struct AddDealOrderArgs {
+    pub bid_order: protos::BidOrder,
+    pub ask_order: protos::AskOrder,
+    pub offer: protos::Offer,
+    pub sighash: SigHash,
+}
+
+impl ToStateEntry for AddDealOrder {
+    type Args = AddDealOrderArgs;
+
+    type Output = protos::DealOrder;
+
+    fn to_state_entry(&self, args: Self::Args, ctx: &ToStateEntryCtx) -> (AddressId, Self::Output) {
+        // let deal_order_id =
+        let AddDealOrder {
+            offer_id: _,
+            expiration,
+        } = self;
+        let AddDealOrderArgs {
+            bid_order,
+            ask_order,
+            offer,
+            sighash,
+        } = args;
+
+        let deal_order = protos::DealOrder {
+            blockchain: offer.blockchain.clone(),
+            src_address: ask_order.address,
+            dst_address: bid_order.address,
+            amount: bid_order.amount,
+            interest: bid_order.interest,
+            maturity: bid_order.maturity,
+            fee: bid_order.fee,
+            expiration: (*expiration).into(),
+            block: ctx.tip().to_string(),
+            sighash: sighash.into(),
+            ..Default::default()
+        };
+
+        let offer_id = offer.to_address_id(OfferIdArgs {
+            ask_order_id: AddressId::from(&offer.ask_order),
+            bid_order_id: AddressId::from(&offer.bid_order),
+        });
+
+        (
+            deal_order.to_address_id(DealOrderIdArgs { offer_id }),
+            deal_order,
+        )
+    }
+}
+
+pub struct AddRepaymentOrderArgs {
+    pub guid: Guid,
+    pub src_address: protos::Address,
+    pub deal_order: protos::DealOrder,
+    pub sighash: SigHash,
+}
+
+impl ToStateEntry for AddRepaymentOrder {
+    type Args = AddRepaymentOrderArgs;
+
+    type Output = protos::RepaymentOrder;
+
+    fn to_state_entry(&self, args: Self::Args, ctx: &ToStateEntryCtx) -> (AddressId, Self::Output) {
+        let AddRepaymentOrder {
+            deal_order_id,
+            address_id,
+            amount_str,
+            expiration,
+        } = self.clone();
+
+        let repayment_order = protos::RepaymentOrder {
+            blockchain: args.src_address.blockchain,
+            src_address: address_id,
+            dst_address: args.deal_order.src_address,
+            amount: amount_str,
+            expiration: expiration.into(),
+            block: ctx.tip().to_string(),
+            deal: deal_order_id,
+            sighash: args.sighash.into(),
+            ..Default::default()
+        };
+
+        (
+            repayment_order.to_address_id(RepaymentOrderIdArgs {
+                add_repayment_order_guid: args.guid,
+            }),
+            repayment_order,
+        )
+    }
+}
