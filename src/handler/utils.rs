@@ -22,7 +22,7 @@ use super::types::CurrencyAmount;
 use super::types::State;
 use super::types::StateVec;
 use super::types::WalletId;
-use super::types::{Address, CCApplyError};
+use super::types::{AddressId, CCApplyError};
 use super::types::{SigHash, TxnResult};
 use super::HandlerContext;
 
@@ -270,7 +270,7 @@ pub fn add_fee(
     states: &mut StateVec,
 ) -> TxnResult<()> {
     let guid = ctx.guid(request);
-    let fee_id = Address::with_prefix_key(super::constants::FEE, guid.as_str());
+    let fee_id = AddressId::with_prefix_key(super::constants::FEE, guid.as_str());
     let fee = crate::protos::Fee {
         sighash: sighash.clone().into(),
         block: last_block(request).to_string(),

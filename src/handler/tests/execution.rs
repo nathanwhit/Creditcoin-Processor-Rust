@@ -55,7 +55,7 @@ pub use crate::{protos, string};
 
 use super::*;
 use crate::handler::context::mocked::MockHandlerContext;
-use crate::handler::types::{Address, BlockNum, Credo, CurrencyAmount, TxnResult};
+use crate::handler::types::{AddressId, BlockNum, Credo, CurrencyAmount, TxnResult};
 use crate::handler::AddAskOrder;
 use crate::handler::AddBidOrder;
 use crate::handler::AddDealOrder;
