@@ -1,6 +1,5 @@
 #![cfg(feature = "integration-testing")]
-mod common;
-use common::*;
+use super::common::*;
 
 #[test]
 #[allow(
@@ -28,6 +27,7 @@ fn send_funds_success() {
         let fundraiser_sighash_signer =
             signer_with_secret("48b0ae97607427a8550e4da5edc8da0a04617adde25c98a405a0c47114cdf69e");
         let fundraiser_sighash = SigHash::from(&fundraiser_sighash_signer);
+        let mut tse = ToStateEntryCtx::new(4u64);
         let mut tx_fee = ccprocessor_rust::handler::constants::TX_FEE.clone();
         let mut request = TpProcessRequest {
             tip: 3,
@@ -88,7 +88,7 @@ fn send_funds_success() {
                     wallet_with(Some(1)).unwrap().into(),
                 ),
                 (
-                    Address::with_prefix_key(
+                    AddressId::with_prefix_key(
                         ccprocessor_rust::handler::constants::FEE,
                         guid.as_str(),
                     )
@@ -132,6 +132,7 @@ fn send_funds_cannot_afford_fee() {
         let fundraiser_sighash_signer =
             signer_with_secret("a84f62499ffd6aeacb118de215f07557c3a961e36177a672c1ebb25ff8d953af");
         let fundraiser_sighash = SigHash::from(&fundraiser_sighash_signer);
+        let mut tse = ToStateEntryCtx::new(3u64);
         let mut tx_fee = ccprocessor_rust::handler::constants::TX_FEE.clone();
         let mut request = TpProcessRequest::default();
         let mut command = SendFunds {
@@ -190,6 +191,7 @@ fn send_funds_cannot_afford_amount() {
         let fundraiser_sighash_signer =
             signer_with_secret("2c0f5b934d46ce41042be387ed7f78648dfa926ac38c91f13a8396910b21d285");
         let fundraiser_sighash = SigHash::from(&fundraiser_sighash_signer);
+        let mut tse = ToStateEntryCtx::new(3u64);
         let mut tx_fee = ccprocessor_rust::handler::constants::TX_FEE.clone();
         let mut request = TpProcessRequest::default();
         let mut command = SendFunds {
@@ -245,6 +247,7 @@ fn send_funds_to_self() {
         let my_sighash_signer =
             signer_with_secret("d8ca9043781be77d563924e5de78406249c97ede8cc6811f32c731ac62199995");
         let my_sighash = SigHash::from(&my_sighash_signer);
+        let mut tse = ToStateEntryCtx::new(2u64);
         let mut tx_fee = ccprocessor_rust::handler::constants::TX_FEE.clone();
         let mut request = TpProcessRequest::default();
         let mut command = SendFunds {

@@ -1,3 +1,4 @@
+#![cfg(feature = "integration-testing")]
 #![allow(dead_code, unused_imports)]
 
 pub use anyhow::Result;
@@ -118,7 +119,8 @@ pub struct PortConfig {
 impl DockerClient {
     pub fn new() -> Self {
         Self {
-            client: Docker::connect_with_local_defaults().unwrap(),
+            client: Docker::connect_with_local_defaults()
+                .expect("Docker daemon not found, it must be running for integration tests"),
             cleanup_containers: vec![],
             cleanup_networks: vec![],
             validator_component_port: portpicker::pick_unused_port().unwrap(),
@@ -136,7 +138,6 @@ impl DockerClient {
         match rt.block_on(self.run_internal(func)) {
             Ok(_) => log::info!("Success!"),
             Err(e) => {
-                log::error!("Sadboi hours: {}", e);
                 panic!("{}", e);
             }
         }
@@ -441,10 +442,10 @@ pub fn send_command_with_signer(
     // Generate a random 128 bit number to use as a nonce
 
     let nonce = to_hex_string(&nonce.unwrap_or_else(make_nonce).to_vec());
-    log::warn!("Nonce = {:?}", nonce);
     txn_header.set_nonce(nonce);
 
-    let input_vec = CCTransactionHandler::namespaces();
+    let mut input_vec = CCTransactionHandler::namespaces();
+    input_vec.push(ccprocessor_rust::handler::constants::SETTINGS_NAMESPACE.into());
     let output_vec = input_vec.clone();
 
     txn_header.set_inputs(RepeatedField::from_vec(input_vec));
@@ -577,7 +578,6 @@ pub fn execute_success(
     let response = send_command_with_signer(command, ports, nonce, signer);
 
     let status = complete_batch(&response.link, None).unwrap();
-    log::warn!("status = {:?}", status);
 
     assert!(
         matches!(status, BatchStatus::Committed),
@@ -705,12 +705,10 @@ pub fn integration_test(func: impl FnOnce(PortConfig) + Send + 'static) {
         tokio::time::sleep(Duration::from_millis(500)).await;
         let binary_path = env!("CARGO_BIN_EXE_ccprocessor-rust");
         let mut sub = std::process::Command::new(binary_path)
-            .arg("-v")
             .arg("-E")
             .arg(&format!("tcp://localhost:{}", ports.validator_component))
             .arg("-G")
             .arg(&format!("tcp://localhost:{}", ports.gateway))
-            // .stdout(std::process::Stdio::null())
             .spawn()
             .expect("Failed to spawn ccprocessor-rust");
 
@@ -726,7 +724,6 @@ pub fn integration_test(func: impl FnOnce(PortConfig) + Send + 'static) {
                 .bind(&format!("tcp://0.0.0.0:{}", ports.gateway))
                 .unwrap();
             while !stop.load(std::sync::atomic::Ordering::SeqCst) {
-                // if let gateway_sock.recv(msg, flags)
                 while let Ok(Ok(req)) = gateway_sock.recv_string(0) {
                     log::debug!("Gateway got request: {}", req);
                     gateway_sock.send("good", 0).unwrap();
@@ -737,7 +734,6 @@ pub fn integration_test(func: impl FnOnce(PortConfig) + Send + 'static) {
 
         let res = catch_unwind(AssertUnwindSafe(|| func(ports)));
 
-        log::warn!("Killing");
         stop.store(true, std::sync::atomic::Ordering::SeqCst);
         sub.kill().unwrap();
         match res {
@@ -750,6 +746,6 @@ pub fn integration_test(func: impl FnOnce(PortConfig) + Send + 'static) {
 pub fn setup_logs() {
     static LOGS: Once = Once::new();
     LOGS.call_once(|| {
-        ccprocessor_rust::setup_logs(3).unwrap();
+        ccprocessor_rust::setup_logs(0).unwrap();
     });
 }
