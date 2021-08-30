@@ -14,6 +14,7 @@ fn register_address_success() {
     let my_sighash_signer =
         signer_with_secret("827c39480011a29fa972ed8b671ee5a69edd13e24b5442ee2694514e56d15d88");
     let my_sighash = SigHash::from(&my_sighash_signer);
+    let mut tse = ToStateEntryCtx::new(3u64);
     let mut tx_fee = TX_FEE.clone();
     let mut request = TpProcessRequest {
         tip: 2,
@@ -35,7 +36,7 @@ fn register_address_success() {
         network: command.network.clone(),
         sighash: my_sighash.to_string(),
     };
-    let mut address = Address::with_prefix_key(
+    let mut address = AddressId::with_prefix_key(
         crate::handler::constants::ADDR,
         &string!("ethereum", "myaddress", "rinkeby"),
     );
@@ -45,12 +46,12 @@ fn register_address_success() {
         ctx.expect_sighash().return_once(move |_| Ok(sig));
     }
     {
-        let guid = command_guid_.clone().clone();
+        let guid = command_guid_.clone();
         ctx.expect_guid().returning(move |_| guid.clone());
     }
     {
-        let address = my_sighash_wallet_id_.clone().clone();
-        let ret = Some(tx_fee.clone()).clone();
+        let address = my_sighash_wallet_id_.clone();
+        let ret = Some(tx_fee.clone());
         tx_ctx
             .expect_get_state_entry()
             .withf(move |addr| address.as_str() == addr)
@@ -96,6 +97,7 @@ fn register_address_taken() {
     let other_sighash_signer =
         signer_with_secret("0bf47d913365b3c163897b3a40a03db6c14c2c8637ac732d93552b3ce6dbfabe");
     let other_sighash = SigHash::from(&other_sighash_signer);
+    let mut tse = ToStateEntryCtx::new(4u64);
     let mut tx_fee = TX_FEE.clone();
     let mut request = TpProcessRequest {
         tip: 2,
@@ -110,12 +112,12 @@ fn register_address_taken() {
     };
     let command_guid_ = Guid("some_guid".into());
     let mut address_proto = crate::protos::Address {
-        blockchain: command.clone().blockchain.clone(),
-        value: command.clone().address.clone(),
-        network: command.clone().network.clone(),
+        blockchain: command.blockchain.clone(),
+        value: command.address.clone(),
+        network: command.network.clone(),
         sighash: my_sighash.clone().to_string(),
     };
-    let mut address = Address::with_prefix_key(
+    let mut address = AddressId::with_prefix_key(
         crate::handler::constants::ADDR,
         &string!("ethereum", "myaddress", "rinkeby"),
     );
@@ -127,8 +129,8 @@ fn register_address_taken() {
         ctx.expect_sighash().return_once(move |_| Ok(sig));
     }
     {
-        let address = my_sighash_wallet_id_.clone().clone();
-        let ret = tx_fee.clone().clone();
+        let address = my_sighash_wallet_id_.clone();
+        let ret = tx_fee.clone();
         tx_ctx
             .expect_get_state_entry()
             .withf(move |addr| address.as_str() == addr)

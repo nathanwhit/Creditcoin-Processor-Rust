@@ -14,6 +14,7 @@ fn add_ask_order_success() {
     let investor_signer =
         signer_with_secret("827c39480011a29fa972ed8b671ee5a69edd13e24b5442ee2694514e56d15d88");
     let investor = SigHash::from(&investor_signer);
+    let mut tse = ToStateEntryCtx::new(3u64);
     let mut tx_fee = TX_FEE.clone();
     let mut request = TpProcessRequest {
         tip: 3,
@@ -22,6 +23,14 @@ fn add_ask_order_success() {
     let mut tx_ctx = MockTransactionContext::default();
     let mut ctx = MockHandlerContext::default();
     let mut address_id = address_id_for("investoraddress");
+    let mut add_ask_order = AddAskOrder {
+        address_id: address_id.clone().into(),
+        amount_str: "1000".into(),
+        interest: "100".into(),
+        maturity: "10".into(),
+        fee_str: "1".into(),
+        expiration: 10000.into(),
+    };
     let mut command = AddAskOrder {
         address_id: address_id.clone().into(),
         amount_str: "1000".into(),
@@ -32,17 +41,17 @@ fn add_ask_order_success() {
     };
     let command_guid_ = Guid("some_guid".into());
     let mut ask_order_id =
-        Address::with_prefix_key(ASK_ORDER.clone(), command_guid_.clone().as_str());
+        AddressId::with_prefix_key(ASK_ORDER.clone(), command_guid_.clone().as_str());
     let investor_wallet_id_ = WalletId::from(&investor);
     let mut address_proto = address_for("investoraddress", &investor.clone());
     let mut ask_order = crate::protos::AskOrder {
-        blockchain: address_proto.clone().blockchain.clone(),
-        address: command.clone().address_id.clone(),
-        amount: command.clone().amount_str.clone(),
-        interest: command.clone().interest.clone(),
-        maturity: command.clone().maturity.clone(),
-        fee: command.clone().fee_str.clone(),
-        expiration: command.clone().expiration.into(),
+        blockchain: address_proto.blockchain.clone(),
+        address: command.address_id.clone(),
+        amount: command.amount_str.clone(),
+        interest: command.interest.clone(),
+        maturity: command.maturity.clone(),
+        fee: command.fee_str.clone(),
+        expiration: command.expiration.clone().into(),
         block: (request.tip - 1).to_string(),
         sighash: investor.clone().into(),
     };
@@ -51,16 +60,16 @@ fn add_ask_order_success() {
         ctx.expect_sighash().return_once(move |_| Ok(sig));
     }
     {
-        let guid = command_guid_.clone().clone();
+        let guid = command_guid_.clone();
         ctx.expect_guid().returning(move |_| guid.clone());
     }
     {
-        let guid = command_guid_.clone().clone();
+        let guid = command_guid_.clone();
         ctx.expect_guid().returning(move |_| guid.clone());
     }
     {
-        let address = investor_wallet_id_.clone().clone();
-        let ret = tx_fee.clone().clone();
+        let address = investor_wallet_id_.clone();
+        let ret = tx_fee.clone();
         tx_ctx
             .expect_get_state_entry()
             .withf(move |addr| address.as_str() == addr)
