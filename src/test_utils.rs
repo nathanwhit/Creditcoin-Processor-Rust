@@ -2,7 +2,7 @@
 
 use crate::ext::MessageExt;
 use crate::handler::constants;
-use crate::handler::types::{AddressId, BlockNum, Guid, SigHash, WalletId};
+use crate::handler::types::{AddressId, BlockNum, CurrencyAmount, Guid, SigHash, WalletId};
 use crate::{handler::*, protos, string};
 use prost::Message;
 use rug::Integer;
@@ -304,6 +304,70 @@ pub fn wallet_with(balance: Option<impl Into<Integer> + Clone>) -> Option<Vec<u8
     })
 }
 
+#[macro_export]
+macro_rules! assert_state_data_eq {
+    ($address: expr, $actual_data: expr, $expected_data: expr, $root: ident) => {{
+        let ns = $address.strip_prefix(&*NAMESPACE_PREFIX).unwrap();
+        let data_decoded = $actual_data;
+        let value = $expected_data;
+        if ns.starts_with(ADDR) {
+            if let Ok(actual) = $root::protos::Address::try_parse(&data_decoded) {
+                if let Ok(expected) = $root::protos::Address::try_parse(&value) {
+                    assert_eq!(actual, expected);
+                }
+            }
+        } else if ns.starts_with(ASK_ORDER) {
+            if let Ok(actual) = $root::protos::AskOrder::try_parse(&data_decoded) {
+                if let Ok(expected) = $root::protos::AskOrder::try_parse(&value) {
+                    assert_eq!(actual, expected);
+                }
+            }
+        } else if ns.starts_with(BID_ORDER) {
+            if let Ok(actual) = $root::protos::BidOrder::try_parse(&data_decoded) {
+                if let Ok(expected) = $root::protos::BidOrder::try_parse(&value) {
+                    assert_eq!(actual, expected);
+                }
+            }
+        } else if ns.starts_with(DEAL_ORDER) {
+            if let Ok(actual) = $root::protos::DealOrder::try_parse(&data_decoded) {
+                if let Ok(expected) = $root::protos::DealOrder::try_parse(&value) {
+                    assert_eq!(actual, expected);
+                }
+            }
+        } else if ns.starts_with(FEE) {
+            if let Ok(actual) = $root::protos::Fee::try_parse(&data_decoded) {
+                if let Ok(expected) = $root::protos::Fee::try_parse(&value) {
+                    assert_eq!(actual, expected);
+                }
+            }
+        } else if ns.starts_with(OFFER) {
+            if let Ok(actual) = $root::protos::Offer::try_parse(&data_decoded) {
+                if let Ok(expected) = $root::protos::Offer::try_parse(&value) {
+                    assert_eq!(actual, expected);
+                }
+            }
+        } else if ns.starts_with(REPAYMENT_ORDER) {
+            if let Ok(actual) = $root::protos::RepaymentOrder::try_parse(&data_decoded) {
+                if let Ok(expected) = $root::protos::RepaymentOrder::try_parse(&value) {
+                    assert_eq!(actual, expected);
+                }
+            }
+        } else if ns.starts_with(TRANSFER) {
+            if let Ok(actual) = $root::protos::Transfer::try_parse(&data_decoded) {
+                if let Ok(expected) = $root::protos::Transfer::try_parse(&value) {
+                    assert_eq!(actual, expected);
+                }
+            }
+        } else if ns.starts_with(WALLET) {
+            if let Ok(actual) = $root::protos::Transfer::try_parse(&data_decoded) {
+                if let Ok(expected) = $root::protos::Transfer::try_parse(&value) {
+                    assert_eq!(actual, expected);
+                }
+            }
+        }
+    }};
+}
+
 impl Guid {
     pub fn random() -> Guid {
         Guid::from(make_nonce())
@@ -448,8 +512,8 @@ pub struct ToStateEntryCtx {
 }
 
 impl ToStateEntryCtx {
-    pub fn tip(&self) -> BlockNum {
-        (self.block - 1).unwrap()
+    pub fn tip(&self) -> u64 {
+        (self.block - 1).unwrap().into()
     }
     pub fn new(block: impl Into<BlockNum>) -> Self {
         Self {
@@ -487,16 +551,6 @@ pub trait ToStateEntry {
         (addr, state.to_bytes())
     }
 }
-
-// impl ToStateEntry for SendFunds {
-//     type Args;
-
-//     type Output;
-
-//     fn to_state_entry(&self, args: Self::Args) -> (AddressId, Self::Output) {
-//         todo!()
-//     }
-// }
 
 impl ToStateEntry for RegisterAddress {
     type Args = SigHash;
@@ -540,7 +594,11 @@ impl ToStateEntry for RegisterTransfer {
             TransferKind::DealOrder(order) if self.gain == 0 => {
                 (order.src_address, order.dst_address, order.amount)
             }
-            TransferKind::DealOrder(order) => (order.dst_address, order.src_address, order.amount),
+            TransferKind::DealOrder(order) => (
+                order.dst_address,
+                order.src_address,
+                (CurrencyAmount::try_parse(order.amount).unwrap() + self.gain.clone()).to_string(),
+            ),
             TransferKind::RepaymentOrder(order) => {
                 (order.src_address, order.dst_address, order.amount)
             }
@@ -732,6 +790,32 @@ impl ToStateEntry for AddDealOrder {
         (
             deal_order.to_address_id(DealOrderIdArgs { offer_id }),
             deal_order,
+        )
+    }
+}
+
+pub struct CompleteDealOrderArgs {
+    pub deal_order: protos::DealOrder,
+}
+
+impl ToStateEntry for CompleteDealOrder {
+    type Args = CompleteDealOrderArgs;
+
+    type Output = protos::DealOrder;
+
+    fn to_state_entry(&self, args: Self::Args, ctx: &ToStateEntryCtx) -> (AddressId, Self::Output) {
+        let CompleteDealOrder {
+            deal_order_id,
+            transfer_id,
+        } = self;
+
+        (
+            deal_order_id.into(),
+            protos::DealOrder {
+                loan_transfer: transfer_id.into(),
+                block: ctx.tip().to_string(),
+                ..args.deal_order
+            },
         )
     }
 }

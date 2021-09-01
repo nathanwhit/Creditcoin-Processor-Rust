@@ -61,6 +61,7 @@ test-env-log = { version = "0.2.7", default-features = false, features = [
 tokio = { version = "1.9.0", features = ["rt", "macros", "net"] }
 ureq = "2.1.1"
 assert_matches = "1.5.0"
+pretty_assertions = "0.7.2"
 
 [features]
 default = ["vendored", "mock"]
