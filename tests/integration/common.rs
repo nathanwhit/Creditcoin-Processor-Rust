@@ -61,27 +61,37 @@ where
     }
 }
 
-pub async fn ensure_image_present(docker: &Docker, image: &str, tag: &str) -> Result<()> {
-    let image_name = format!("{}:{}", image, tag);
+pub async fn ensure_image_present(
+    docker: &Docker,
+    repo: &str,
+    image: &str,
+    tag: &str,
+) -> Result<()> {
+    let image_name = format!("{}/{}:{}", repo, image, tag);
     match docker.inspect_image(&image_name).await {
         Ok(_image) => {
-            log::info!("got image");
+            log::debug!("got image");
         }
         Err(_e) => {
-            while let Some(Ok(_response)) = docker
-                .create_image(
-                    Some(CreateImageOptions {
-                        from_image: image,
-                        tag,
-                        ..Default::default()
-                    }),
-                    None,
-                    None,
-                )
-                .next()
-                .await
-            {
-                println!("Pulling image");
+            log::info!("Pulling image");
+            let mut stream = docker.create_image(
+                Some(CreateImageOptions {
+                    from_image: image_name.as_str(),
+                    tag,
+                    ..Default::default()
+                }),
+                None,
+                None,
+            );
+            while let Some(response) = stream.next().await {
+                match response {
+                    Ok(response) => {
+                        log::info!("{:?}", response);
+                    }
+                    Err(response) => {
+                        log::warn!("Error received: {:?}", response);
+                    }
+                }
             }
         }
     }
@@ -154,7 +164,7 @@ impl DockerClient {
         };
 
         match rt.block_on(self.run_internal(func)) {
-            Ok(_) => log::info!("Success!"),
+            Ok(_) => log::debug!("Success!"),
             Err(e) => {
                 panic!("{}", e);
             }
@@ -233,9 +243,14 @@ pub async fn setup(docker: &mut DockerClient) -> Result<()> {
 
     docker.cleanup_networks.push(network_id.clone());
 
-    ensure_image_present(docker, "hyperledger/sawtooth-settings-tp", "1.0").await?;
-    ensure_image_present(docker, "gluwa/creditcoin-validator", "1.7.1").await?;
-    ensure_image_present(docker, "gluwa/sawtooth-rest-api", "latest").await?;
+    let (settings_pull_result, validator_pull_result, rest_pull_result) = tokio::join!(
+        ensure_image_present(docker, "hyperledger", "sawtooth-settings-tp", "1.0"),
+        ensure_image_present(docker, "gluwa", "creditcoin-validator", "1.7.1"),
+        ensure_image_present(docker, "gluwa", "sawtooth-rest-api", "latest"),
+    );
+    settings_pull_result?;
+    validator_pull_result?;
+    rest_pull_result?;
 
     let name = random_name("creditcoin-validator");
 
@@ -244,7 +259,6 @@ pub async fn setup(docker: &mut DockerClient) -> Result<()> {
 
     let comp_port_str = format!("{}/tcp", docker.validator_component_port);
     let endpoint_port_str = format!("{}/tcp", docker.validator_endpoint_port);
-
     let validator = docker
         .create_container(
             Some(CreateContainerOptions { name }),
@@ -715,7 +729,7 @@ pub fn integration_test(func: impl FnOnce(PortConfig) + Send + 'static) {
                     gateway_sock.send("good", 0).unwrap();
                 }
             }
-            log::info!("Gateway stopping");
+            log::debug!("Gateway stopping");
         });
 
         let res = catch_unwind(AssertUnwindSafe(|| func(ports)));
@@ -732,6 +746,6 @@ pub fn integration_test(func: impl FnOnce(PortConfig) + Send + 'static) {
 pub fn setup_logs() {
     static LOGS: Once = Once::new();
     LOGS.call_once(|| {
-        ccprocessor_rust::setup_logs(0).unwrap();
+        ccprocessor_rust::setup_logs(1).unwrap();
     });
 }
