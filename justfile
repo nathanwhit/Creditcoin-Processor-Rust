@@ -37,5 +37,18 @@ unit-test: update-tests
 
 test: update-tests
     cargo test --features {{integration_options}} --no-fail-fast
+
+run-test:
+    cargo test --features {{integration_options}} --no-fail-fast
+
+run-unit-test:
+    cargo test
+
+test-matching TEST: update-tests
+    cargo test --features {{integration_options}} {{TEST}}
+
+test-matching-integration TEST: update-tests
+    cargo test --features {{integration_options}} --test '{{TEST}}'
+
 coverage: update-tests
     cargo llvm-cov --features {{integration_options}} --no-fail-fast --html
