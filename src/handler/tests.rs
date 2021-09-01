@@ -25,6 +25,7 @@ use itertools::Itertools;
 use mockall::lazy_static;
 use mockall::predicate;
 use openssl::sha::sha512;
+use pretty_assertions::assert_eq;
 use prost::Message;
 use protobuf::Message as ProtobufMessage;
 use protobuf::RepeatedField;
@@ -1172,11 +1173,13 @@ fn expect_set_state_entries(tx_ctx: &mut MockTransactionContext, entries: Vec<(S
             let entries = entries.into_iter().sorted().collect_vec();
             move |e| {
                 let s = itertools::sorted(e.clone()).collect_vec();
-                for (entry, other) in entries.iter().zip(&s) {
-                    if entry != other {
-                        println!("Not equal! Expected {:?} -- Found {:?}", entry, other);
-                        return false;
+                for ((address, value), (actual_address, actual_value)) in entries.iter().zip(&s) {
+                    assert_eq!(address, actual_address);
+                    if value != actual_value { 
+                        crate::assert_state_data_eq!(address, actual_value, value, crate);
                     }
+                    
+                    
                 }
                 if entries.len() != s.len() {
                     println!("Unequal lengths! Expected {:?} -- Found {:?}", entries.len(), s.len());

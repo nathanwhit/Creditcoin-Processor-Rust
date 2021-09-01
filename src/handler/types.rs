@@ -443,6 +443,9 @@ impl BlockNum {
     pub fn new() -> Self {
         Self(0)
     }
+    pub fn to_u64(self) -> u64 {
+        self.0
+    }
 }
 
 impl fmt::Display for BlockNum {
