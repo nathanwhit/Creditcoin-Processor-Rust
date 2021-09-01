@@ -30,7 +30,7 @@ fn complete_repayment_order_success() {
         let collector_signer =
             signer_with_secret("0bf47d913365b3c163897b3a40a03db6c14c2c8637ac732d93552b3ce6dbfabe");
         let collector = SigHash::from(&collector_signer);
-        let mut tse = ToStateEntryCtx::new(5u64);
+        let mut tse = ToStateEntryCtx::new(4u64);
         let mut tx_fee = ccprocessor_rust::handler::constants::TX_FEE.clone();
         let mut request = TpProcessRequest {
             tip: 14,

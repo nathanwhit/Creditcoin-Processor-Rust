@@ -3,9 +3,7 @@ sighashes = [investor, fundraiser, collector]
 result = pass
 
 signer = Signer!(collector)
-request = TpProcessRequest { tip: 13, ..default }
 
-let tse = ToStateEntryCtx::new(5);
 let register_address_investor = register_address_for("investoraddress");
 let register_address_fundraiser = register_address_for("fundraiseraddress");
 let register_address_collector = register_address_for("collectoraddress");
@@ -103,6 +101,7 @@ let complete_deal_order = CompleteDealOrder {
     deal_order_id: deal_order_id.into(),
     transfer_id: transfer_id.into()
 };
+rust { tse.inc_tip(); }
 
 let updated_deal_order = crate::protos::DealOrder {
     loan_transfer: transfer_id.into(),
@@ -123,17 +122,19 @@ let add_repayment_order = AddRepaymentOrder {
     expiration: 10000.into()
 }
 
-command = add_repayment_order;
 
+let add_repayment_order_guid = Guid!();
 let (repayment_order_id, repayment_order) = tse.state_entry_from(add_repayment_order, 
     AddRepaymentOrderArgs {
-        guid: Guid!(command),
+        guid: add_repayment_order_guid,
         src_address: collector_address,
         deal_order,
         sighash: collector,
     }
 );
 
+guid = add_repayment_order_guid
+command = add_repayment_order;
 
 require(
     Wallet for investor with amount = rust { tx_fee.clone() * 5 },
@@ -163,6 +164,6 @@ expect(
     set states {
         repayment_order_id : repayment_order.to_bytes(),
         WalletId!(collector) : wallet_with(Some(0)).unwrap(),
-        make_fee(&Guid!(command), &collector, Some(rust { request.tip - 1 }))
+        make_fee(&Guid!(command), &collector, Some(rust { tse.tip() - 1 }))
     },
 )

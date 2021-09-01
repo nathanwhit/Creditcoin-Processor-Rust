@@ -2,7 +2,9 @@ name = "AddAskOrder success"
 sighashes = [investor]
 result = pass
 
-let address_id = address_id_for("investoraddress")
+let register_address = register_address_for("investoraddress");
+let register_address_guid = Guid!();
+let (address_id, address) = tse.state_entry_from(register_address, SigHash!(investor));
 
 let add_ask_order = AddAskOrder {
     address_id: address_id.into(),
@@ -12,39 +14,22 @@ let add_ask_order = AddAskOrder {
     fee_str: "1".into(),
     expiration: 10000.into(),
 };
+let add_ask_order_guid = Guid!();
 
-// let (ask_order_id, ask_order) = 
+let (ask_order_id, ask_order) = tse.state_entry_from(add_ask_order, AddAskOrderArgs {
+    guid: add_ask_order_guid,
+    sighash: SigHash!(investor),
+    address,
+});
 
-command = AddAskOrder {
-    address_id: address_id.into(),
-    amount_str: "1000".into(),
-    interest: "100".into(),
-    maturity: "10".into(),
-    fee_str: "1".into(),
-    expiration: 10000.into(),
-}
+guid = add_ask_order_guid
+command = add_ask_order
 signer = Signer!(investor)
-request = TpProcessRequest { tip: 3, ..default }
-let ask_order_id = AddressId::with_prefix_key(ASK_ORDER, Guid!(command).as_str());
 
 require(
     Wallet for investor with amount = rust { tx_fee * 2 },
-    send transaction { register_address_for("investoraddress") } with signer = Signer!(investor),
+    send transaction { register_address } with signer = Signer!(investor), guid = register_address_guid,
 )
-
-let address_proto = address_for("investoraddress", &SigHash!(investor));
-
-let ask_order = crate::protos::AskOrder {
-    blockchain: address_proto.blockchain.clone(),
-    address: command.address_id.clone(),
-    amount: command.amount_str.clone(),
-    interest: command.interest.clone(),
-    maturity: command.maturity.clone(),
-    fee: command.fee_str.clone(),
-    expiration: command.expiration.into(),
-    block: rust { (request.tip - 1).to_string() },
-    sighash: investor.into(),
-};
 
 expect(
     sighash -> SigHash!(investor),
@@ -52,7 +37,7 @@ expect(
     guid -> Guid!(command),
     get balance at WalletId!(investor) -> tx_fee,
     get state at ask_order_id -> None,
-    get state at address_id -> Some(address_proto),
+    get state at address_id -> Some(address),
     set states {
         WalletId!(investor) : wallet_with(Some(0)).unwrap(),
         ask_order_id.to_string() : ask_order.to_bytes(),
