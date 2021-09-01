@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use once_cell::sync::Lazy;
 use rug::Integer;
 
@@ -36,10 +34,15 @@ pub const SKIP_TO_GET_60: usize = 512 / 8 * 2 - 60; // 512 - hash size in bits, 
 
 pub const DEAL_EXP_FIX_BLOCK: BlockNum = BlockNum(278890);
 
+#[cfg(not(test))]
 pub const GATEWAY_TIMEOUT: i32 = 5000;
+#[cfg(not(test))]
 pub const EXTERNAL_GATEWAY_TIMEOUT: i32 = 25000;
 
-pub const MESSAGE_TIMEOUT: Duration = Duration::from_secs(6);
+#[cfg(test)]
+pub const GATEWAY_TIMEOUT: i32 = 5000;
+#[cfg(test)]
+pub const EXTERNAL_GATEWAY_TIMEOUT: i32 = 100;
 
 // For debugging
 // pub const GATEWAY_TIMEOUT: i32 = 10000;
