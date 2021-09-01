@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use once_cell::sync::Lazy;
 use rug::Integer;
 
@@ -43,10 +41,15 @@ pub const BLOCK_REWARD_DELAY: BlockNum = BlockNum(500);
 pub const LEGACY_UPDATE_BLOCK_TOP: i32 = 278904;
 pub const LEGACY_UPDATE_BLOCK_BOTTOM: i32 = 278890;
 
+#[cfg(not(test))]
 pub const GATEWAY_TIMEOUT: i32 = 5000;
+#[cfg(not(test))]
 pub const EXTERNAL_GATEWAY_TIMEOUT: i32 = 25000;
 
-pub const MESSAGE_TIMEOUT: Duration = Duration::from_secs(6);
+#[cfg(test)]
+pub const GATEWAY_TIMEOUT: i32 = 5000;
+#[cfg(test)]
+pub const EXTERNAL_GATEWAY_TIMEOUT: i32 = 100;
 
 // For debugging
 // pub const GATEWAY_TIMEOUT: i32 = 10000;
