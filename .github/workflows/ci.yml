@@ -86,7 +86,32 @@ jobs:
           files: ${{ steps.coverage.outputs.report }}
           fail_ci_if_error: true
           verbose: true
-
+  integration-test:
+    name: Integration testing
+    runs-on: ubuntu-18.04
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+      - uses: Swatinem/rust-cache@v1
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y cmake make gcc protobuf-compiler libzmq3-dev
+      - name: Install Docker
+        uses: docker-practice/actions-setup-docker@master
+        with:
+          docker_channel: stable
+          docker_version: "20.10"
+          docker_buildx: false
+          docker_cli_experimental: disabled
+      - name: Run integration testing
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --features 'old-sawtooth integration-testing' --test '*' --no-fail-fast
   fmt:
     name: Rustfmt
     runs-on: ubuntu-18.04
