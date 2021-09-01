@@ -14,14 +14,14 @@ fn register_address_success() {
     let my_sighash_signer =
         signer_with_secret("827c39480011a29fa972ed8b671ee5a69edd13e24b5442ee2694514e56d15d88");
     let my_sighash = SigHash::from(&my_sighash_signer);
-    let mut tse = ToStateEntryCtx::new(3u64);
+    let mut tse = ToStateEntryCtx::new(2u64);
     let mut tx_fee = TX_FEE.clone();
+    let mut tx_ctx = MockTransactionContext::default();
+    let mut ctx = MockHandlerContext::default();
     let mut request = TpProcessRequest {
         tip: 2,
         ..::core::default::Default::default()
     };
-    let mut tx_ctx = MockTransactionContext::default();
-    let mut ctx = MockHandlerContext::default();
     let mut command = RegisterAddress {
         blockchain: "ethereum".into(),
         address: "myaddress".into(),
@@ -97,14 +97,14 @@ fn register_address_taken() {
     let other_sighash_signer =
         signer_with_secret("0bf47d913365b3c163897b3a40a03db6c14c2c8637ac732d93552b3ce6dbfabe");
     let other_sighash = SigHash::from(&other_sighash_signer);
-    let mut tse = ToStateEntryCtx::new(4u64);
+    let mut tse = ToStateEntryCtx::new(3u64);
     let mut tx_fee = TX_FEE.clone();
+    let mut tx_ctx = MockTransactionContext::default();
+    let mut ctx = MockHandlerContext::default();
     let mut request = TpProcessRequest {
         tip: 2,
         ..::core::default::Default::default()
     };
-    let mut tx_ctx = MockTransactionContext::default();
-    let mut ctx = MockHandlerContext::default();
     let mut command = RegisterAddress {
         blockchain: "ethereum".into(),
         address: "myaddress".into(),

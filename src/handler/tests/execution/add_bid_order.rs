@@ -14,16 +14,19 @@ fn add_bid_order_success() {
     let fundraiser_signer =
         signer_with_secret("827c39480011a29fa972ed8b671ee5a69edd13e24b5442ee2694514e56d15d88");
     let fundraiser = SigHash::from(&fundraiser_signer);
-    let mut tse = ToStateEntryCtx::new(3u64);
+    let mut tse = ToStateEntryCtx::new(2u64);
     let mut tx_fee = TX_FEE.clone();
+    let mut tx_ctx = MockTransactionContext::default();
+    let mut ctx = MockHandlerContext::default();
     let mut request = TpProcessRequest {
         tip: 3,
         ..::core::default::Default::default()
     };
-    let mut tx_ctx = MockTransactionContext::default();
-    let mut ctx = MockHandlerContext::default();
-    let mut address_id = address_id_for("fundraiseraddress");
-    let mut command = AddBidOrder {
+    let mut register_address = register_address_for("fundraiseraddress");
+    let (mut address_id, mut address_proto) =
+        tse.state_entry_from(register_address.clone(), fundraiser.clone());
+    let mut add_bid_order_guid = Guid::from(make_nonce());
+    let mut add_bid_order = AddBidOrder {
         address_id: address_id.clone().into(),
         amount_str: "1000".into(),
         interest: "100".into(),
@@ -31,10 +34,18 @@ fn add_bid_order_success() {
         fee_str: "1".into(),
         expiration: 10000.into(),
     };
-    let command_guid_ = Guid("some_guid".into());
+    let (mut bid_order_id, mut bid_order) = tse.state_entry_from(
+        add_bid_order.clone(),
+        AddBidOrderArgs {
+            guid: add_bid_order_guid.clone(),
+            address: address_proto.clone(),
+            sighash: fundraiser.clone(),
+        },
+    );
+    let mut command_guid_ = add_bid_order_guid.clone();
+    let mut command = add_bid_order.clone();
     let mut bid_order_id =
         AddressId::with_prefix_key(BID_ORDER.clone(), command_guid_.clone().as_str());
-    let fundraiser_wallet_id_ = WalletId::from(&fundraiser);
     let mut address_proto = address_for("fundraiseraddress", &fundraiser.clone());
     let mut bid_order = crate::protos::BidOrder {
         blockchain: address_proto.blockchain.clone(),
@@ -47,6 +58,7 @@ fn add_bid_order_success() {
         block: (request.tip - 1).to_string(),
         sighash: fundraiser.clone().into(),
     };
+    let fundraiser_wallet_id_ = WalletId::from(&fundraiser);
     {
         let sig = crate::handler::types::SigHash(fundraiser.clone().to_string());
         ctx.expect_sighash().return_once(move |_| Ok(sig));

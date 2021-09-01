@@ -2,25 +2,30 @@ name = "AddBidOrder success"
 sighashes = [fundraiser]
 result = pass
 
-let address_id = address_id_for("fundraiseraddress")
 
-command = AddBidOrder {
+let register_address = register_address_for("fundraiseraddress");
+let (address_id, address_proto) = tse.state_entry_from(register_address, SigHash!(fundraiser));
+
+let add_bid_order_guid = Guid!();
+let add_bid_order = AddBidOrder {
     address_id: address_id.into(),
     amount_str: "1000".into(),
     interest: "100".into(),
     maturity: "10".into(),
     fee_str: "1".into(),
     expiration: 10000.into(),
-}
+};
+let (bid_order_id, bid_order) = tse.state_entry_from(add_bid_order, AddBidOrderArgs {
+    guid: add_bid_order_guid,
+    address: address_proto,
+    sighash: SigHash!(fundraiser),
+});
+
+guid = add_bid_order_guid
+command = add_bid_order
 signer = Signer!(fundraiser)
 request = TpProcessRequest { tip: 3, ..default }
 let bid_order_id = AddressId::with_prefix_key(BID_ORDER, Guid!(command).as_str());
-
-require(
-    Wallet for fundraiser with amount = rust { tx_fee * 2 },
-    send transaction { register_address_for("fundraiseraddress") } with signer = Signer!(fundraiser),
-)
-
 let address_proto = address_for("fundraiseraddress", &SigHash!(fundraiser));
 
 let bid_order = crate::protos::BidOrder {
@@ -34,6 +39,11 @@ let bid_order = crate::protos::BidOrder {
     block: rust { (request.tip - 1).to_string() },
     sighash: fundraiser.into()
 };
+
+require(
+    Wallet for fundraiser with amount = rust { tx_fee * 2 },
+    send transaction { register_address } with signer = Signer!(fundraiser),
+)
 
 expect(
     sighash -> fundraiser,

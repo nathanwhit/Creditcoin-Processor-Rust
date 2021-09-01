@@ -27,7 +27,7 @@ fn exempt_success() {
         let fundraiser_signer =
             signer_with_secret("48b0ae97607427a8550e4da5edc8da0a04617adde25c98a405a0c47114cdf69e");
         let fundraiser = SigHash::from(&fundraiser_signer);
-        let mut tse = ToStateEntryCtx::new(4u64);
+        let mut tse = ToStateEntryCtx::new(3u64);
         let mut tx_fee = ccprocessor_rust::handler::constants::TX_FEE.clone();
         let mut request = TpProcessRequest {
             tip: 10,

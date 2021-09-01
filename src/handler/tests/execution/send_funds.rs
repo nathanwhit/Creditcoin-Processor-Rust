@@ -17,14 +17,14 @@ fn send_funds_success() {
     let fundraiser_sighash_signer =
         signer_with_secret("48b0ae97607427a8550e4da5edc8da0a04617adde25c98a405a0c47114cdf69e");
     let fundraiser_sighash = SigHash::from(&fundraiser_sighash_signer);
-    let mut tse = ToStateEntryCtx::new(4u64);
+    let mut tse = ToStateEntryCtx::new(3u64);
     let mut tx_fee = TX_FEE.clone();
+    let mut tx_ctx = MockTransactionContext::default();
+    let mut ctx = MockHandlerContext::default();
     let mut request = TpProcessRequest {
         tip: 3,
         ..Default::default()
     };
-    let mut tx_ctx = MockTransactionContext::default();
-    let mut ctx = MockHandlerContext::default();
     let mut command = SendFunds {
         amount: 1.into(),
         sighash: fundraiser_sighash.clone().into(),
@@ -102,12 +102,8 @@ fn send_funds_cannot_afford_fee() {
     let fundraiser_sighash_signer =
         signer_with_secret("544f4fe3edb3e8e44d4a1f0050ce03a729b2da887b644e95ec6bf6a0cfdbf0f4");
     let fundraiser_sighash = SigHash::from(&fundraiser_sighash_signer);
-    let mut tse = ToStateEntryCtx::new(3u64);
+    let mut tse = ToStateEntryCtx::new(2u64);
     let mut tx_fee = TX_FEE.clone();
-    let mut request = TpProcessRequest {
-        tip: tse.tip().into(),
-        ..Default::default()
-    };
     let mut tx_ctx = MockTransactionContext::default();
     let mut ctx = MockHandlerContext::default();
     let mut command = SendFunds {
@@ -129,6 +125,10 @@ fn send_funds_cannot_afford_fee() {
             .withf(move |addr| address.as_str() == addr)
             .return_once(move |_| Ok(wallet_with(ret)));
     }
+    let mut request = TpProcessRequest {
+        tip: tse.tip().into(),
+        ..Default::default()
+    };
     execute_failure(command, &request, &tx_ctx, &mut ctx, "Insufficient funds");
 }
 
@@ -149,12 +149,8 @@ fn send_funds_cannot_afford_amount() {
     let fundraiser_sighash_signer =
         signer_with_secret("f5cc8af9d13b3190729fb196a385e5b28663ad538724fdadf7ef25ff20c38b31");
     let fundraiser_sighash = SigHash::from(&fundraiser_sighash_signer);
-    let mut tse = ToStateEntryCtx::new(3u64);
+    let mut tse = ToStateEntryCtx::new(2u64);
     let mut tx_fee = TX_FEE.clone();
-    let mut request = TpProcessRequest {
-        tip: tse.tip().into(),
-        ..Default::default()
-    };
     let mut tx_ctx = MockTransactionContext::default();
     let mut ctx = MockHandlerContext::default();
     let mut command = SendFunds {
@@ -176,6 +172,10 @@ fn send_funds_cannot_afford_amount() {
             .withf(move |addr| address.as_str() == addr)
             .return_once(move |_| Ok(wallet_with(Option::from(ret))));
     }
+    let mut request = TpProcessRequest {
+        tip: tse.tip().into(),
+        ..Default::default()
+    };
     execute_failure(command, &request, &tx_ctx, &mut ctx, "Insufficient funds");
 }
 
@@ -193,12 +193,8 @@ fn send_funds_to_self() {
     let my_sighash_signer =
         signer_with_secret("9628e0b771d0bc1ecd7975011f18d46dab673de62997297b1f40985f6a166dac");
     let my_sighash = SigHash::from(&my_sighash_signer);
-    let mut tse = ToStateEntryCtx::new(2u64);
+    let mut tse = ToStateEntryCtx::new(1u64);
     let mut tx_fee = TX_FEE.clone();
-    let mut request = TpProcessRequest {
-        tip: tse.tip().into(),
-        ..Default::default()
-    };
     let mut tx_ctx = MockTransactionContext::default();
     let mut ctx = MockHandlerContext::default();
     let mut command = SendFunds {
@@ -211,5 +207,9 @@ fn send_funds_to_self() {
         let sig = crate::handler::types::SigHash(my_sighash.clone().to_string());
         ctx.expect_sighash().return_once(move |_| Ok(sig));
     }
+    let mut request = TpProcessRequest {
+        tip: tse.tip().into(),
+        ..Default::default()
+    };
     execute_failure(command, &request, &tx_ctx, &mut ctx, "Invalid destination");
 }

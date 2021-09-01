@@ -20,14 +20,14 @@ fn complete_repayment_order_success() {
     let collector_signer =
         signer_with_secret("0bf47d913365b3c163897b3a40a03db6c14c2c8637ac732d93552b3ce6dbfabe");
     let collector = SigHash::from(&collector_signer);
-    let mut tse = ToStateEntryCtx::new(5u64);
+    let mut tse = ToStateEntryCtx::new(4u64);
     let mut tx_fee = TX_FEE.clone();
+    let mut tx_ctx = MockTransactionContext::default();
+    let mut ctx = MockHandlerContext::default();
     let mut request = TpProcessRequest {
         tip: 14,
         ..::core::default::Default::default()
     };
-    let mut tx_ctx = MockTransactionContext::default();
-    let mut ctx = MockHandlerContext::default();
     let mut investor_address_id = address_id_for("investoraddress");
     let mut fundraiser_address_id = address_id_for("fundraiseraddress");
     let mut collector_address_id = address_id_for("collectoraddress");

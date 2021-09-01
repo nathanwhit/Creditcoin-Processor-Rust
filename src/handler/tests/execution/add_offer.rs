@@ -17,30 +17,22 @@ fn add_offer_success() {
     let fundraiser_signer =
         signer_with_secret("48b0ae97607427a8550e4da5edc8da0a04617adde25c98a405a0c47114cdf69e");
     let fundraiser = SigHash::from(&fundraiser_signer);
-    let mut tse = ToStateEntryCtx::new(4u64);
+    let mut tse = ToStateEntryCtx::new(3u64);
     let mut tx_fee = TX_FEE.clone();
+    let mut tx_ctx = MockTransactionContext::default();
+    let mut ctx = MockHandlerContext::default();
     let mut request = TpProcessRequest {
         tip: 7,
         ..::core::default::Default::default()
     };
-    let mut tx_ctx = MockTransactionContext::default();
-    let mut ctx = MockHandlerContext::default();
-    let mut investor_address_id = address_id_for("investoraddress");
-    let mut fundraiser_address_id = address_id_for("fundraiseraddress");
     let mut add_ask_order_guid = Guid::random();
     let mut add_bid_order_guid = Guid::random();
-    let mut ask_order_id =
-        AddressId::with_prefix_key(ASK_ORDER.clone(), add_ask_order_guid.clone().as_str());
-    let mut bid_order_id =
-        AddressId::with_prefix_key(BID_ORDER.clone(), add_bid_order_guid.clone().as_str());
-    let mut command = AddOffer {
-        ask_order_id: ask_order_id.clone().into(),
-        bid_order_id: bid_order_id.clone().into(),
-        expiration: 10000.into(),
-    };
-    let command_guid_ = Guid("some_guid".into());
-    let mut investor_address_proto = address_for("investoraddress", &investor.clone());
-    let mut fundraiser_address_proto = address_for("fundraiseraddress", &fundraiser.clone());
+    let mut register_address_investor = register_address_for("investoraddress");
+    let (mut investor_address_id, mut investor_address) =
+        tse.state_entry_from(register_address_investor.clone(), investor.clone());
+    let mut register_address_fundraiser = register_address_for("fundraiseraddress");
+    let (mut fundraiser_address_id, mut fundraiser_address) =
+        tse.state_entry_from(register_address_fundraiser.clone(), fundraiser.clone());
     let mut add_ask_order = AddAskOrder {
         address_id: investor_address_id.clone().into(),
         amount_str: "1000".into(),
@@ -49,17 +41,14 @@ fn add_offer_success() {
         fee_str: "1".into(),
         expiration: 10000.into(),
     };
-    let mut ask_order = crate::protos::AskOrder {
-        blockchain: investor_address_proto.blockchain.clone(),
-        address: add_ask_order.address_id.clone(),
-        amount: add_ask_order.amount_str.clone(),
-        interest: add_ask_order.interest.clone(),
-        maturity: add_ask_order.maturity.clone(),
-        fee: add_ask_order.fee_str.clone(),
-        expiration: add_ask_order.expiration.clone().into(),
-        block: (request.tip - 1).to_string(),
-        sighash: investor.clone().into(),
-    };
+    let (mut ask_order_id, mut ask_order) = tse.state_entry_from(
+        add_ask_order.clone(),
+        AddAskOrderArgs {
+            guid: add_ask_order_guid.clone(),
+            address: investor_address.clone(),
+            sighash: investor.clone(),
+        },
+    );
     let mut add_bid_order = AddBidOrder {
         address_id: fundraiser_address_id.clone().into(),
         amount_str: "1000".into(),
@@ -68,33 +57,30 @@ fn add_offer_success() {
         fee_str: "1".into(),
         expiration: 10000.into(),
     };
-    let mut bid_order = crate::protos::BidOrder {
-        blockchain: fundraiser_address_proto.blockchain.clone(),
-        address: fundraiser_address_id.clone().into(),
-        amount: add_bid_order.amount_str.clone(),
-        interest: add_bid_order.interest.clone(),
-        maturity: add_bid_order.maturity.clone(),
-        fee: add_bid_order.fee_str.clone(),
-        expiration: add_bid_order.expiration.clone().into(),
-        block: (request.tip - 1).to_string(),
-        sighash: fundraiser.clone().into(),
+    let (mut bid_order_id, mut bid_order) = tse.state_entry_from(
+        add_bid_order.clone(),
+        AddBidOrderArgs {
+            guid: add_bid_order_guid.clone(),
+            address: fundraiser_address.clone(),
+            sighash: fundraiser.clone(),
+        },
+    );
+    let mut add_offer = AddOffer {
+        ask_order_id: ask_order_id.clone().into(),
+        bid_order_id: bid_order_id.clone().into(),
+        expiration: 10000.into(),
     };
+    let (mut offer_id, mut offer) = tse.state_entry_from(
+        add_offer.clone(),
+        AddOfferArgs {
+            src_address: investor_address.clone(),
+            sighash: investor.clone(),
+        },
+    );
+    let mut command = add_offer.clone();
+    let command_guid_ = Guid("some_guid".into());
     let investor_wallet_id_ = WalletId::from(&investor);
     let fundraiser_wallet_id_ = WalletId::from(&fundraiser);
-    let add_ask_order_guid_ = Guid("some_guid".into());
-    let add_bid_order_guid_ = Guid("some_guid".into());
-    let mut offer_address_id = AddressId::with_prefix_key(
-        OFFER.clone(),
-        &string!(&command.ask_order_id, &command.bid_order_id),
-    );
-    let mut offer = crate::protos::Offer {
-        blockchain: investor_address_proto.blockchain.clone(),
-        ask_order: command.ask_order_id.clone(),
-        bid_order: command.bid_order_id.clone(),
-        expiration: command.expiration.clone().into(),
-        block: (request.tip - 1).to_string(),
-        sighash: investor.clone().to_string(),
-    };
     {
         let sig = crate::handler::types::SigHash(investor.clone().to_string());
         ctx.expect_sighash().return_once(move |_| Ok(sig));
@@ -113,7 +99,7 @@ fn add_offer_success() {
     }
     expect_get_state_entry(
         &mut tx_ctx,
-        offer_address_id.clone(),
+        offer_id.clone(),
         <Option<crate::protos::Wallet>>::None,
         None,
     );
@@ -132,20 +118,20 @@ fn add_offer_success() {
     expect_get_state_entry(
         &mut tx_ctx,
         investor_address_id.clone(),
-        Some(investor_address_proto.clone()),
+        Some(investor_address.clone()),
         None,
     );
     expect_get_state_entry(
         &mut tx_ctx,
         fundraiser_address_id.clone(),
-        Some(fundraiser_address_proto.clone()),
+        Some(fundraiser_address.clone()),
         None,
     );
     expect_set_state_entries(
         &mut tx_ctx,
         vec![
             (
-                offer_address_id.clone().to_string(),
+                offer_id.clone().to_string(),
                 offer.clone().to_bytes().into(),
             ),
             (
@@ -155,7 +141,7 @@ fn add_offer_success() {
             make_fee(
                 &command_guid_.clone(),
                 &investor.clone(),
-                Some(request.tip - 1),
+                Some(tse.tip() - 1),
             ),
         ],
     );

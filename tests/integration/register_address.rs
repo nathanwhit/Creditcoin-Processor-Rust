@@ -24,7 +24,7 @@ fn register_address_success() {
         let my_sighash_signer =
             signer_with_secret("827c39480011a29fa972ed8b671ee5a69edd13e24b5442ee2694514e56d15d88");
         let my_sighash = SigHash::from(&my_sighash_signer);
-        let mut tse = ToStateEntryCtx::new(3u64);
+        let mut tse = ToStateEntryCtx::new(2u64);
         let mut tx_fee = ccprocessor_rust::handler::constants::TX_FEE.clone();
         let mut request = TpProcessRequest {
             tip: 2,
@@ -112,7 +112,7 @@ fn register_address_taken() {
         let other_sighash_signer =
             signer_with_secret("7586793549de011ef43bfac7cee149feb1f1de9a5f558c75ef46714b544f4fe3");
         let other_sighash = SigHash::from(&other_sighash_signer);
-        let mut tse = ToStateEntryCtx::new(4u64);
+        let mut tse = ToStateEntryCtx::new(3u64);
         let mut tx_fee = ccprocessor_rust::handler::constants::TX_FEE.clone();
         let mut request = TpProcessRequest {
             tip: 2,

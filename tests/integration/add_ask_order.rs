@@ -24,13 +24,16 @@ fn add_ask_order_success() {
         let investor_signer =
             signer_with_secret("827c39480011a29fa972ed8b671ee5a69edd13e24b5442ee2694514e56d15d88");
         let investor = SigHash::from(&investor_signer);
-        let mut tse = ToStateEntryCtx::new(3u64);
+        let mut tse = ToStateEntryCtx::new(2u64);
         let mut tx_fee = ccprocessor_rust::handler::constants::TX_FEE.clone();
         let mut request = TpProcessRequest {
-            tip: 3,
-            ..::core::default::Default::default()
+            tip: u64::from(tse.tip()),
+            ..Default::default()
         };
-        let mut address_id = address_id_for("investoraddress");
+        let mut register_address = register_address_for("investoraddress");
+        let mut register_address_guid = Guid::from(make_nonce());
+        let (mut address_id, mut address) =
+            tse.state_entry_from(register_address.clone(), investor.clone());
         let mut add_ask_order = AddAskOrder {
             address_id: address_id.clone().into(),
             amount_str: "1000".into(),
@@ -39,17 +42,17 @@ fn add_ask_order_success() {
             fee_str: "1".into(),
             expiration: 10000.into(),
         };
-        let mut command = AddAskOrder {
-            address_id: address_id.clone().into(),
-            amount_str: "1000".into(),
-            interest: "100".into(),
-            maturity: "10".into(),
-            fee_str: "1".into(),
-            expiration: 10000.into(),
-        };
-        let command_guid_ = Guid::from(make_nonce());
-        let mut ask_order_id =
-            AddressId::with_prefix_key(ASK_ORDER.clone(), command_guid_.clone().as_str());
+        let mut add_ask_order_guid = Guid::from(make_nonce());
+        let (mut ask_order_id, mut ask_order) = tse.state_entry_from(
+            add_ask_order.clone(),
+            AddAskOrderArgs {
+                guid: add_ask_order_guid.clone(),
+                sighash: investor.clone(),
+                address: address.clone().clone(),
+            },
+        );
+        let mut command_guid_ = add_ask_order_guid.clone();
+        let mut command = add_ask_order.clone();
         {
             let amount = tx_fee * 2;
             let collect_coins = ccprocessor_rust::handler::CollectCoins {
@@ -65,25 +68,18 @@ fn add_ask_order_success() {
         }
         let investor_wallet_id_ = WalletId::from(&investor);
         {
-            let tx = register_address_for("investoraddress");
-            let response = send_command_with_signer(tx, ports, None, &investor_signer);
+            let tx = register_address.clone();
+            let response = send_command_with_signer(
+                tx,
+                ports,
+                Some(Nonce::from(register_address_guid.clone())),
+                &investor_signer,
+            );
             assert_matches!(
                 complete_batch(&response.link, None),
                 Some(BatchStatus::Committed)
             );
         }
-        let mut address_proto = address_for("investoraddress", &investor.clone());
-        let mut ask_order = ccprocessor_rust::protos::AskOrder {
-            blockchain: address_proto.blockchain.clone(),
-            address: command.address_id.clone(),
-            amount: command.amount_str.clone(),
-            interest: command.interest.clone(),
-            maturity: command.maturity.clone(),
-            fee: command.fee_str.clone(),
-            expiration: command.expiration.clone().into(),
-            block: (request.tip - 1).to_string(),
-            sighash: investor.clone().into(),
-        };
         execute_success(
             command,
             ports,

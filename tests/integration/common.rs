@@ -19,6 +19,7 @@ pub use futures_lite::{Future, StreamExt};
 
 pub use itertools::Itertools;
 pub use maplit::hashmap;
+use once_cell::sync::Lazy;
 pub use openssl::sha::sha512;
 pub use protobuf::{Message, RepeatedField};
 pub use rand::distributions::Alphanumeric;
@@ -32,10 +33,13 @@ pub use sawtooth_sdk::{
     signing::{create_context, secp256k1::Secp256k1PrivateKey, Signer},
 };
 pub use serde::Deserialize;
+use std::collections::HashSet;
 pub use std::convert::TryInto;
 pub use std::net::Ipv4Addr;
+use std::sync::Mutex;
 
 pub use assert_matches::assert_matches;
+pub use pretty_assertions::{assert_eq, assert_ne};
 pub use sawtooth_sdk::messages::processor::TpProcessRequest;
 pub use std::panic::{catch_unwind, AssertUnwindSafe};
 pub use std::sync::atomic::AtomicBool;
@@ -44,7 +48,7 @@ pub use std::time::{Duration, Instant};
 pub use std::{fs::File, io::Read};
 pub use tokio::runtime::Runtime;
 
-trait Ext {
+pub trait Ext {
     fn into_strings(self) -> Vec<String>;
 }
 
@@ -95,6 +99,8 @@ pub fn random_name(base: &str) -> String {
     format!("{}_{}", base, chars)
 }
 
+static TAKEN_PORTS: Lazy<Mutex<HashSet<u16>>> = Lazy::new(|| Mutex::new(HashSet::new()));
+
 #[derive(Deref, DerefMut)]
 pub struct DockerClient {
     #[deref]
@@ -116,17 +122,29 @@ pub struct PortConfig {
     gateway: u16,
 }
 
+fn pick_port() -> u16 {
+    let mut tries = 0;
+    while tries < 25 {
+        tries += 1;
+        let port = portpicker::pick_unused_port().unwrap();
+        if TAKEN_PORTS.lock().unwrap().insert(port) {
+            return port;
+        }
+    }
+    panic!("Failed to find an unused port in {} tries", tries);
+}
+
 impl DockerClient {
     pub fn new() -> Self {
         Self {
             client: Docker::connect_with_local_defaults()
                 .expect("Docker daemon not found, it must be running for integration tests"),
+            validator_component_port: pick_port(),
+            validator_endpoint_port: pick_port(),
+            rest_api_port: pick_port(),
+            gateway_port: pick_port(),
             cleanup_containers: vec![],
             cleanup_networks: vec![],
-            validator_component_port: portpicker::pick_unused_port().unwrap(),
-            validator_endpoint_port: portpicker::pick_unused_port().unwrap(),
-            rest_api_port: portpicker::pick_unused_port().unwrap(),
-            gateway_port: portpicker::pick_unused_port().unwrap(),
         }
     }
     pub fn run<T: Future<Output = ()> + Send + 'static>(self, func: impl FnOnce(&Self) -> T) {
@@ -651,40 +669,8 @@ pub fn expect_set_state_entries(ports: PortConfig, entries: Vec<(String, Vec<u8>
         let data_decoded = base64::decode(&entry.data)?;
 
         if data_decoded != value {
-            if let Ok(wallet) = ccprocessor_rust::protos::DealOrder::try_parse(&data_decoded) {
-                if let Ok(expected) = ccprocessor_rust::protos::DealOrder::try_parse(&value) {
-                    println!(
-                        "Proto for address {} = {:#?}, \n\nexpected {:#?}",
-                        address, wallet, expected
-                    );
-                }
-            }
-            if let Ok(wallet) = ccprocessor_rust::protos::RepaymentOrder::try_parse(&data_decoded) {
-                if let Ok(expected) = ccprocessor_rust::protos::RepaymentOrder::try_parse(&value) {
-                    println!(
-                        "Proto for address {} = {:#?}, \n\nexpected {:#?}",
-                        address, wallet, expected
-                    );
-                }
-            }
-            if let Ok(wallet) = ccprocessor_rust::protos::Transfer::try_parse(&data_decoded) {
-                if let Ok(expected) = ccprocessor_rust::protos::Transfer::try_parse(&value) {
-                    println!(
-                        "Proto for address {} = {:#?}, \n\nexpected {:#?}",
-                        address, wallet, expected
-                    );
-                }
-            }
-            if let Ok(wallet) = ccprocessor_rust::protos::Fee::try_parse(&data_decoded) {
-                if let Ok(expected) = ccprocessor_rust::protos::Fee::try_parse(&value) {
-                    println!(
-                        "Proto for address {} = {:#?}, \n\nexpected {:#?}",
-                        address, wallet, expected
-                    );
-                }
-            }
+            ccprocessor_rust::assert_state_data_eq!(address, data_decoded, value, ccprocessor_rust);
         }
-        assert_eq!(data_decoded, value, "for address {}", address);
     }
     Ok(())
 }
@@ -722,7 +708,7 @@ pub fn integration_test(func: impl FnOnce(PortConfig) + Send + 'static) {
             gateway_sock.set_sndtimeo(1000).unwrap();
             gateway_sock
                 .bind(&format!("tcp://0.0.0.0:{}", ports.gateway))
-                .unwrap();
+                .expect(&format!("Gateway port already in use: {}", ports.gateway));
             while !stop.load(std::sync::atomic::Ordering::SeqCst) {
                 while let Ok(Ok(req)) = gateway_sock.recv_string(0) {
                     log::debug!("Gateway got request: {}", req);

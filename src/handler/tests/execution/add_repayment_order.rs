@@ -20,14 +20,10 @@ fn add_repayment_order_success() {
     let collector_signer =
         signer_with_secret("0bf47d913365b3c163897b3a40a03db6c14c2c8637ac732d93552b3ce6dbfabe");
     let collector = SigHash::from(&collector_signer);
+    let mut tse = ToStateEntryCtx::new(4u64);
     let mut tx_fee = TX_FEE.clone();
-    let mut request = TpProcessRequest {
-        tip: 13,
-        ..::core::default::Default::default()
-    };
     let mut tx_ctx = MockTransactionContext::default();
     let mut ctx = MockHandlerContext::default();
-    let mut tse = ToStateEntryCtx::new(5);
     let mut register_address_investor = register_address_for("investoraddress");
     let mut register_address_fundraiser = register_address_for("fundraiseraddress");
     let mut register_address_collector = register_address_for("collectoraddress");
@@ -115,6 +111,7 @@ fn add_repayment_order_success() {
         deal_order_id: deal_order_id.clone().into(),
         transfer_id: transfer_id.clone().into(),
     };
+    tse.inc_tip();
     let mut updated_deal_order = crate::protos::DealOrder {
         loan_transfer: transfer_id.clone().into(),
         block: tse.tip().to_string(),
@@ -130,17 +127,18 @@ fn add_repayment_order_success() {
         amount_str: String::from("100"),
         expiration: 10000.into(),
     };
-    let mut command = add_repayment_order.clone();
-    let command_guid_ = Guid("some_guid".into());
+    let mut add_repayment_order_guid = Guid::from(make_nonce());
     let (mut repayment_order_id, mut repayment_order) = tse.state_entry_from(
         add_repayment_order.clone(),
         AddRepaymentOrderArgs {
-            guid: command_guid_.clone(),
+            guid: add_repayment_order_guid.clone(),
             src_address: collector_address.clone(),
             deal_order: deal_order.clone().clone(),
             sighash: collector.clone(),
         },
     );
+    let mut command_guid_ = add_repayment_order_guid.clone();
+    let mut command = add_repayment_order.clone();
     let investor_wallet_id_ = WalletId::from(&investor);
     let fundraiser_wallet_id_ = WalletId::from(&fundraiser);
     let collector_wallet_id_ = WalletId::from(&collector);
@@ -198,9 +196,13 @@ fn add_repayment_order_success() {
             make_fee(
                 &command_guid_.clone(),
                 &collector.clone(),
-                Some(request.tip - 1),
+                Some(tse.tip() - 1),
             ),
         ],
     );
+    let mut request = TpProcessRequest {
+        tip: tse.tip().into(),
+        ..Default::default()
+    };
     execute_success(command, &request, &tx_ctx, &mut ctx);
 }
