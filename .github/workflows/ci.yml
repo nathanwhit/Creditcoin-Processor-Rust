@@ -87,6 +87,7 @@ jobs:
   integration-test:
     name: Integration testing
     runs-on: ubuntu-18.04
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v2
       - name: Install Rust toolchain

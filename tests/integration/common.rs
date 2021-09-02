@@ -360,14 +360,6 @@ pub async fn setup(docker: &mut DockerClient) -> Result<()> {
                     }),
                     ..Default::default()
                 }),
-
-                // networking_config: Some(NetworkingConfig {
-                //     endpoints_config: Some(hashmap! {
-                //         &network_id => EndpointSettings {
-
-                //         }
-                //     }),
-                // }),
                 ..Default::default()
             },
         )
@@ -379,12 +371,6 @@ pub async fn setup(docker: &mut DockerClient) -> Result<()> {
 
     docker.start_container::<&str>(&rest_api_id, None).await?;
     docker.start_container::<&str>(&settings_id, None).await?;
-    // let settings =
-    // let docker
-
-    // tokio::time::sleep(Duration::from_secs(30)).await;
-
-    // panic!();
     Ok(())
 }
 
@@ -702,7 +688,7 @@ pub fn integration_test(func: impl FnOnce(PortConfig) + Send + 'static) {
         gateway: test.gateway_port,
     };
     test.run(|_client| async move {
-        tokio::time::sleep(Duration::from_millis(500)).await;
+        tokio::time::sleep(Duration::from_secs(5)).await;
         let binary_path = env!("CARGO_BIN_EXE_ccprocessor-rust");
         let mut sub = std::process::Command::new(binary_path)
             .arg("-E")
