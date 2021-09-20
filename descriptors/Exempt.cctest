@@ -3,16 +3,17 @@ sighashes = [investor, fundraiser]
 result = pass
 
 signer = Signer!(investor)
-request = TpProcessRequest { tip: 10, ..default }
 
-let investor_address_id = address_id_for("investoraddress")
-let fundraiser_address_id = address_id_for("fundraiseraddress")
+let add_ask_order_guid = Guid::random();
+let add_bid_order_guid = Guid::random();
+let add_offer_guid = Guid::random();
+let add_deal_order_guid = Guid::random();
+
 let register_address_investor = register_address_for("investoraddress");
-let register_address_fundraiser = register_address_for("fundraiseraddress")
+let (investor_address_id, investor_address) = tse.state_entry_from(register_address_investor, SigHash!(investor));
 
-
-let investor_address = address_for("investoraddress", &SigHash!(investor));
-let fundraiser_address = address_for("fundraiseraddress", &SigHash!(fundraiser));
+let register_address_fundraiser = register_address_for("fundraiseraddress");
+let (fundraiser_address_id, fundraiser_address) = tse.state_entry_from(register_address_fundraiser, SigHash!(fundraiser));
 
 let add_ask_order = AddAskOrder {
     address_id: investor_address_id.into(),
@@ -22,20 +23,11 @@ let add_ask_order = AddAskOrder {
     fee_str: "1".into(),
     expiration: 10000.into(),
 };
-
-let add_ask_order_guid = Guid::random();
-let ask_order_id = AddressId::with_prefix_key(ASK_ORDER, add_ask_order_guid.as_str());
-let ask_order = crate::protos::AskOrder {
-    blockchain: investor_address.blockchain.clone(),
-    address: add_ask_order.address_id.clone(),
-    amount: add_ask_order.amount_str.clone(),
-    interest: add_ask_order.interest.clone(),
-    maturity: add_ask_order.maturity.clone(),
-    fee: add_ask_order.fee_str.clone(),
-    expiration: add_ask_order.expiration.into(),
-    block: rust { (request.tip - 6).to_string() },
-    sighash: investor.into()
-};
+let (ask_order_id, ask_order) = tse.state_entry_from(add_ask_order, AddAskOrderArgs {
+    guid: add_ask_order_guid,
+    address: investor_address,
+    sighash: SigHash!(investor),
+});
 
 let add_bid_order = AddBidOrder {
     address_id: fundraiser_address_id.into(),
@@ -45,61 +37,33 @@ let add_bid_order = AddBidOrder {
     fee_str: "1".into(),
     expiration: 10000.into(),
 };
-
-let add_bid_order_guid = Guid::random();
-let bid_order_id = AddressId::with_prefix_key(BID_ORDER, add_bid_order_guid.as_str());
-let bid_order = crate::protos::BidOrder {
-    blockchain: fundraiser_address.blockchain.clone(),
-    address: fundraiser_address_id.into(),
-    amount: add_bid_order.amount_str.clone(),
-    interest: add_bid_order.interest.clone(),
-    maturity: add_bid_order.maturity.clone(),
-    fee: add_bid_order.fee_str.clone(),
-    expiration: add_bid_order.expiration.into(),
-    block: rust { (request.tip - 5).to_string() },
-    sighash: fundraiser.into()
-};
-
-
+let (bid_order_id, bid_order) = tse.state_entry_from(add_bid_order, AddBidOrderArgs {
+    guid: add_bid_order_guid,
+    address: fundraiser_address,
+    sighash: SigHash!(fundraiser),
+});
 
 let add_offer = AddOffer {
     ask_order_id: ask_order_id.into(),
     bid_order_id: bid_order_id.into(),
     expiration: 10000.into(),
 };
-
-let add_offer_guid = Guid::random();
-let offer_id = AddressId::with_prefix_key(OFFER, rust { &string!(&ask_order_id, &bid_order_id) });
-let offer = crate::protos::Offer {
-    blockchain: investor_address.blockchain.clone(),
-    ask_order: ask_order_id.into(),
-    bid_order: bid_order_id.into(),
-    expiration: add_offer.expiration.into(),
-    block: rust { (request.tip - 4).to_string() },
-    sighash: investor.to_string(),
-};
-
+let (offer_id, offer) = tse.state_entry_from(add_offer, AddOfferArgs {
+    src_address: investor_address,
+    sighash: SigHash!(investor)
+});
 
 let add_deal_order = AddDealOrder {
     offer_id: offer_id.into(),
     expiration: 10000.into(),
 };
 
-let deal_order_id = AddressId::with_prefix_key(DEAL_ORDER, &offer_id);
-let deal_order = crate::protos::DealOrder {
-    blockchain: offer.blockchain,
-    src_address: ask_order.address,
-    dst_address: bid_order.address,
-    amount: bid_order.amount,
-    interest: bid_order.interest,
-    maturity: bid_order.maturity,
-    fee: bid_order.fee,
-    expiration: add_ask_order.expiration.into(),
-    sighash: fundraiser.to_string(),
-    block: rust { (request.tip - 3).to_string() },
-    ..default
-}
-
+let (deal_order_id, deal_order) = tse.state_entry_from(add_deal_order, AddDealOrderArgs {
+    bid_order,
+    ask_order,
+    offer,
+    sighash: SigHash!(fundraiser)
+});
 
 let register_transfer = RegisterTransfer {
     gain: 0.into(),
@@ -107,23 +71,15 @@ let register_transfer = RegisterTransfer {
     blockchain_tx_id: s"blockchaintxid",
 };
 
-let transfer_id =  
-    AddressId::with_prefix_key(
-        TRANSFER, 
-        rust { &string!(&investor_address.blockchain, &register_transfer.blockchain_tx_id, &investor_address.network) }
-    );
+let (transfer_id, transfer) = tse.state_entry_from(
+    register_transfer,
+    RegisterTransferArgs {
+        kind: TransferKind::DealOrder(deal_order),
+        src_address: investor_address,
+        src_sighash: SigHash!(investor),
+    }
+);
 
-let transfer = crate::protos::Transfer {
-    blockchain: investor_address.blockchain.clone(),
-    dst_address: fundraiser_address_id.to_string(),
-    src_address: investor_address_id.to_string(),
-    order: register_transfer.order_id.clone(),
-    amount: deal_order.amount,
-    tx: register_transfer.blockchain_tx_id.clone(),
-    sighash: investor.to_string(),
-    block: rust { (request.tip - 2).to_string() },
-    processed: false,
-};
 
 let exempt = Exempt {
     deal_order_id: deal_order_id.into(),
@@ -140,13 +96,13 @@ let updated_transfer = crate::protos::Transfer {
     ..transfer
 };
 
+rust { tse.inc_tip(); }
+
 command = exempt;
 
 require(
     Wallet for investor with amount = rust { tx_fee.clone() * 5 },
     Wallet for fundraiser with amount = rust { tx_fee.clone() * 3 + 1 },
-    Guid for add_ask_order,
-    Guid for add_bid_order,
     send transaction { register_address_investor } with signer = Signer!(investor),
     send transaction { register_address_fundraiser } with signer = Signer!(fundraiser),
     send transaction { add_ask_order } with signer = Signer!(investor), guid = add_ask_order_guid,
@@ -155,7 +111,6 @@ require(
     send transaction { add_deal_order } with signer = Signer!(fundraiser),
     send transaction { register_transfer } with signer = Signer!(investor),
 )
-
 
 expect(
     sighash -> investor,
@@ -168,6 +123,6 @@ expect(
         deal_order_id : updated_deal_order.to_bytes(),
         transfer_id: updated_transfer.to_bytes(),
         WalletId!(investor) : wallet_with(Some(0)).unwrap(),
-        make_fee(&Guid!(command), &investor, Some(rust { request.tip - 1 }))
+        make_fee(&Guid!(command), &investor, Some(rust { tse.tip() - 1 }))
     },
 )

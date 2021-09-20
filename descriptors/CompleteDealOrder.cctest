@@ -102,8 +102,6 @@ command = complete_deal_order;
 require(
     Wallet for investor with amount = rust { tx_fee.clone() * 5 },
     Wallet for fundraiser with amount = rust { tx_fee.clone() * 3 + 1 },
-    Guid for add_ask_order,
-    Guid for add_bid_order,
     send transaction { register_address_investor } with signer = Signer!(investor),
     send transaction { register_address_fundraiser } with signer = Signer!(fundraiser),
     send transaction { add_ask_order } with signer = Signer!(investor), guid = add_ask_order_guid,

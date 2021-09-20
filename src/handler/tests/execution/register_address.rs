@@ -11,38 +11,26 @@ use super::*;
 fn register_address_success() {
     use crate::handler::types::*;
     use std::str::FromStr as _;
-    let my_sighash_signer =
+    let investor_signer =
         signer_with_secret("827c39480011a29fa972ed8b671ee5a69edd13e24b5442ee2694514e56d15d88");
-    let my_sighash = SigHash::from(&my_sighash_signer);
+    let investor = SigHash::from(&investor_signer);
     let mut tse = ToStateEntryCtx::new(2u64);
     let mut tx_fee = TX_FEE.clone();
     let mut tx_ctx = MockTransactionContext::default();
     let mut ctx = MockHandlerContext::default();
-    let mut request = TpProcessRequest {
-        tip: 2,
-        ..::core::default::Default::default()
-    };
-    let mut command = RegisterAddress {
+    let mut register_address = RegisterAddress {
         blockchain: "ethereum".into(),
         address: "myaddress".into(),
         network: "rinkeby".into(),
     };
+    let (mut address_id, mut address) =
+        tse.state_entry_from(register_address.clone(), investor.clone());
+    let mut command = register_address.clone();
     let command_guid_ = Guid("some_guid".into());
-    let my_sighash_wallet_id_ = WalletId::from(&my_sighash);
-    let command_guid_ = Guid("some_guid".into());
-    let mut address_proto = crate::protos::Address {
-        blockchain: command.blockchain.clone(),
-        value: command.address.clone(),
-        network: command.network.clone(),
-        sighash: my_sighash.to_string(),
-    };
-    let mut address = AddressId::with_prefix_key(
-        crate::handler::constants::ADDR,
-        &string!("ethereum", "myaddress", "rinkeby"),
-    );
+    let investor_wallet_id_ = WalletId::from(&investor);
     let mut guid = command_guid_.clone();
     {
-        let sig = crate::handler::types::SigHash(my_sighash.clone().to_string());
+        let sig = crate::handler::types::SigHash(investor.clone().to_string());
         ctx.expect_sighash().return_once(move |_| Ok(sig));
     }
     {
@@ -50,7 +38,7 @@ fn register_address_success() {
         ctx.expect_guid().returning(move |_| guid.clone());
     }
     {
-        let address = my_sighash_wallet_id_.clone();
+        let address = investor_wallet_id_.clone();
         let ret = Some(tx_fee.clone());
         tx_ctx
             .expect_get_state_entry()
@@ -59,7 +47,7 @@ fn register_address_success() {
     }
     expect_get_state_entry(
         &mut tx_ctx,
-        address.clone(),
+        address_id.clone(),
         <Option<crate::protos::Wallet>>::None,
         None,
     );
@@ -67,16 +55,20 @@ fn register_address_success() {
         &mut tx_ctx,
         vec![
             (
-                address.clone().to_string().to_string(),
-                address_proto.clone().to_bytes().into(),
+                address_id.clone().to_string().to_string(),
+                address.clone().to_bytes().into(),
             ),
             (
-                my_sighash_wallet_id_.clone().to_string(),
+                investor_wallet_id_.clone().to_string(),
                 wallet_with(Some(0)).unwrap().into(),
             ),
-            make_fee(&guid, &my_sighash, Some(1)),
+            make_fee(&guid.clone(), &investor.clone(), Some(tse.tip() - 1)),
         ],
     );
+    let mut request = TpProcessRequest {
+        tip: tse.tip().into(),
+        ..Default::default()
+    };
     execute_success(command, &request, &tx_ctx, &mut ctx);
 }
 
@@ -91,57 +83,44 @@ fn register_address_success() {
 fn register_address_taken() {
     use crate::handler::types::*;
     use std::str::FromStr as _;
-    let my_sighash_signer =
+    let investor_signer =
         signer_with_secret("48b0ae97607427a8550e4da5edc8da0a04617adde25c98a405a0c47114cdf69e");
-    let my_sighash = SigHash::from(&my_sighash_signer);
-    let other_sighash_signer =
+    let investor = SigHash::from(&investor_signer);
+    let fundraiser_signer =
         signer_with_secret("0bf47d913365b3c163897b3a40a03db6c14c2c8637ac732d93552b3ce6dbfabe");
-    let other_sighash = SigHash::from(&other_sighash_signer);
+    let fundraiser = SigHash::from(&fundraiser_signer);
     let mut tse = ToStateEntryCtx::new(3u64);
     let mut tx_fee = TX_FEE.clone();
     let mut tx_ctx = MockTransactionContext::default();
     let mut ctx = MockHandlerContext::default();
-    let mut request = TpProcessRequest {
-        tip: 2,
-        ..::core::default::Default::default()
-    };
-    let mut command = RegisterAddress {
+    let mut register_address = RegisterAddress {
         blockchain: "ethereum".into(),
         address: "myaddress".into(),
         network: "rinkeby".into(),
     };
+    let (mut address_id, mut address) =
+        tse.state_entry_from(register_address.clone(), fundraiser.clone());
+    let mut command = register_address.clone();
     let command_guid_ = Guid("some_guid".into());
-    let mut address_proto = crate::protos::Address {
-        blockchain: command.blockchain.clone(),
-        value: command.address.clone(),
-        network: command.network.clone(),
-        sighash: my_sighash.clone().to_string(),
-    };
-    let mut address = AddressId::with_prefix_key(
-        crate::handler::constants::ADDR,
-        &string!("ethereum", "myaddress", "rinkeby"),
-    );
-    let my_sighash_wallet_id_ = WalletId::from(&my_sighash);
-    let other_sighash_wallet_id_ = WalletId::from(&other_sighash);
-    let command_guid_ = Guid("some_guid".into());
+    let investor_wallet_id_ = WalletId::from(&investor);
+    let fundraiser_wallet_id_ = WalletId::from(&fundraiser);
     {
-        let sig = crate::handler::types::SigHash(my_sighash.clone().to_string());
+        let sig = crate::handler::types::SigHash(investor.clone().to_string());
         ctx.expect_sighash().return_once(move |_| Ok(sig));
     }
     {
-        let address = my_sighash_wallet_id_.clone();
+        let address = investor_wallet_id_.clone();
         let ret = tx_fee.clone();
         tx_ctx
             .expect_get_state_entry()
             .withf(move |addr| address.as_str() == addr)
             .return_once(move |_| Ok(wallet_with(Option::from(ret))));
     }
-    expect_get_state_entry(
-        &mut tx_ctx,
-        address.clone(),
-        Some(address_proto.clone()),
-        None,
-    );
+    expect_get_state_entry(&mut tx_ctx, address_id.clone(), Some(address.clone()), None);
+    let mut request = TpProcessRequest {
+        tip: tse.tip().into(),
+        ..Default::default()
+    };
     execute_failure(
         command,
         &request,

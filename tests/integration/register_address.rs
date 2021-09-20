@@ -21,20 +21,23 @@ fn register_address_success() {
     use std::str::FromStr as _;
     setup_logs();
     integration_test(|ports| {
-        let my_sighash_signer =
+        let investor_signer =
             signer_with_secret("827c39480011a29fa972ed8b671ee5a69edd13e24b5442ee2694514e56d15d88");
-        let my_sighash = SigHash::from(&my_sighash_signer);
+        let investor = SigHash::from(&investor_signer);
         let mut tse = ToStateEntryCtx::new(2u64);
         let mut tx_fee = ccprocessor_rust::handler::constants::TX_FEE.clone();
         let mut request = TpProcessRequest {
-            tip: 2,
-            ..::core::default::Default::default()
+            tip: u64::from(tse.tip()),
+            ..Default::default()
         };
-        let mut command = RegisterAddress {
+        let mut register_address = RegisterAddress {
             blockchain: "ethereum".into(),
             address: "myaddress".into(),
             network: "rinkeby".into(),
         };
+        let (mut address_id, mut address) =
+            tse.state_entry_from(register_address.clone(), investor.clone());
+        let mut command = register_address.clone();
         let command_guid_ = Guid::from(make_nonce());
         {
             let amount = tx_fee.clone();
@@ -43,43 +46,32 @@ fn register_address_success() {
                 eth_address: "dummy".into(),
                 blockchain_tx_id: "ncp3CpqlvPLhtOw".into(),
             };
-            let response = send_command_with_signer(collect_coins, ports, None, &my_sighash_signer);
+            let response = send_command_with_signer(collect_coins, ports, None, &investor_signer);
             assert_matches!(
                 complete_batch(&response.link, None),
                 Some(BatchStatus::Committed)
             );
         }
-        let my_sighash_wallet_id_ = WalletId::from(&my_sighash);
-        let command_guid_ = Guid::from(make_nonce());
-        let mut address_proto = ccprocessor_rust::protos::Address {
-            blockchain: command.blockchain.clone(),
-            value: command.address.clone(),
-            network: command.network.clone(),
-            sighash: my_sighash.to_string(),
-        };
-        let mut address = AddressId::with_prefix_key(
-            ccprocessor_rust::handler::constants::ADDR,
-            &string!("ethereum", "myaddress", "rinkeby"),
-        );
+        let investor_wallet_id_ = WalletId::from(&investor);
         let mut guid = command_guid_.clone();
         execute_success(
             command,
             ports,
             Some(Nonce::from(command_guid_.clone())),
-            &my_sighash_signer,
+            &investor_signer,
         );
         expect_set_state_entries(
             ports,
             vec![
                 (
-                    address.clone().to_string().to_string(),
-                    address_proto.clone().to_bytes().into(),
+                    address_id.clone().to_string().to_string(),
+                    address.clone().to_bytes().into(),
                 ),
                 (
-                    my_sighash_wallet_id_.clone().to_string(),
+                    investor_wallet_id_.clone().to_string(),
                     wallet_with(Some(0)).unwrap().into(),
                 ),
-                make_fee(&guid, &my_sighash, Some(1)),
+                make_fee(&guid.clone(), &investor.clone(), Some(tse.tip() - 1)),
             ],
         )
         .unwrap();
@@ -106,34 +98,27 @@ fn register_address_taken() {
     use std::str::FromStr as _;
     setup_logs();
     integration_test(|ports| {
-        let my_sighash_signer =
+        let investor_signer =
             signer_with_secret("edb3e8e44d4a1f0050ce03a729b2da887b644e95ec6bf6a0cfdbf0f40bf47d91");
-        let my_sighash = SigHash::from(&my_sighash_signer);
-        let other_sighash_signer =
+        let investor = SigHash::from(&investor_signer);
+        let fundraiser_signer =
             signer_with_secret("7586793549de011ef43bfac7cee149feb1f1de9a5f558c75ef46714b544f4fe3");
-        let other_sighash = SigHash::from(&other_sighash_signer);
+        let fundraiser = SigHash::from(&fundraiser_signer);
         let mut tse = ToStateEntryCtx::new(3u64);
         let mut tx_fee = ccprocessor_rust::handler::constants::TX_FEE.clone();
         let mut request = TpProcessRequest {
-            tip: 2,
-            ..::core::default::Default::default()
+            tip: u64::from(tse.tip()),
+            ..Default::default()
         };
-        let mut command = RegisterAddress {
+        let mut register_address = RegisterAddress {
             blockchain: "ethereum".into(),
             address: "myaddress".into(),
             network: "rinkeby".into(),
         };
+        let (mut address_id, mut address) =
+            tse.state_entry_from(register_address.clone(), fundraiser.clone());
+        let mut command = register_address.clone();
         let command_guid_ = Guid::from(make_nonce());
-        let mut address_proto = ccprocessor_rust::protos::Address {
-            blockchain: command.blockchain.clone(),
-            value: command.address.clone(),
-            network: command.network.clone(),
-            sighash: my_sighash.clone().to_string(),
-        };
-        let mut address = AddressId::with_prefix_key(
-            ccprocessor_rust::handler::constants::ADDR,
-            &string!("ethereum", "myaddress", "rinkeby"),
-        );
         {
             let amount = tx_fee.clone();
             let collect_coins = ccprocessor_rust::handler::CollectCoins {
@@ -141,13 +126,13 @@ fn register_address_taken() {
                 eth_address: "dummy".into(),
                 blockchain_tx_id: "4MrUslkrXe5bAHt".into(),
             };
-            let response = send_command_with_signer(collect_coins, ports, None, &my_sighash_signer);
+            let response = send_command_with_signer(collect_coins, ports, None, &investor_signer);
             assert_matches!(
                 complete_batch(&response.link, None),
                 Some(BatchStatus::Committed)
             );
         }
-        let my_sighash_wallet_id_ = WalletId::from(&my_sighash);
+        let investor_wallet_id_ = WalletId::from(&investor);
         {
             let amount = tx_fee.clone();
             let collect_coins = ccprocessor_rust::handler::CollectCoins {
@@ -155,18 +140,16 @@ fn register_address_taken() {
                 eth_address: "dummy".into(),
                 blockchain_tx_id: "qrXc4V46SL8cHOL".into(),
             };
-            let response =
-                send_command_with_signer(collect_coins, ports, None, &other_sighash_signer);
+            let response = send_command_with_signer(collect_coins, ports, None, &fundraiser_signer);
             assert_matches!(
                 complete_batch(&response.link, None),
                 Some(BatchStatus::Committed)
             );
         }
-        let other_sighash_wallet_id_ = WalletId::from(&other_sighash);
-        let command_guid_ = Guid::from(make_nonce());
+        let fundraiser_wallet_id_ = WalletId::from(&fundraiser);
         {
-            let tx = command.clone();
-            let response = send_command_with_signer(tx, ports, None, &other_sighash_signer);
+            let tx = register_address.clone();
+            let response = send_command_with_signer(tx, ports, None, &fundraiser_signer);
             assert_matches!(
                 complete_batch(&response.link, None),
                 Some(BatchStatus::Committed)
@@ -177,7 +160,7 @@ fn register_address_taken() {
             "The address has been already registered",
             ports,
             Some(Nonce::from(command_guid_.clone())),
-            &my_sighash_signer,
+            &investor_signer,
         );
     });
 }

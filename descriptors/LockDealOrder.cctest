@@ -4,7 +4,6 @@ result = pass
 
 signer = Signer!(fundraiser)
 
-
 let add_ask_order_guid = Guid::random();
 let add_bid_order_guid = Guid::random();
 let add_offer_guid = Guid::random();
@@ -66,14 +65,14 @@ let (deal_order_id, deal_order) = tse.state_entry_from(add_deal_order, AddDealOr
     sighash: SigHash!(fundraiser)
 });
 
-let register_transfer = RegisterTransfer {
+let register_transfer_invest = RegisterTransfer {
     gain: 0.into(),
     order_id: deal_order_id.into(),
     blockchain_tx_id: s"blockchaintxid",
 };
 
-let (transfer_id, transfer) = tse.state_entry_from(
-    register_transfer,
+let (invest_transfer_id, invest_transfer) = tse.state_entry_from(
+    register_transfer_invest,
     RegisterTransferArgs {
         kind: TransferKind::DealOrder(deal_order),
         src_address: investor_address,
@@ -83,18 +82,19 @@ let (transfer_id, transfer) = tse.state_entry_from(
 
 let complete_deal_order = CompleteDealOrder {
     deal_order_id: deal_order_id.into(),
-    transfer_id: transfer_id.into()
+    transfer_id: invest_transfer_id.into()
 };
-let (_id, updated_deal_order) = tse.state_entry_from(
-    complete_deal_order,
-    CompleteDealOrderArgs {
-        deal_order
-    }
-);
+
+let (_id, updated_deal_order) = tse.state_entry_from(complete_deal_order, CompleteDealOrderArgs { deal_order });
+
 
 let updated_transfer = crate::protos::Transfer {
     processed: true,
-    ..transfer
+    ..invest_transfer
+};
+
+let lock_deal_order = LockDealOrder {
+    deal_order_id: deal_order_id.into(),
 };
 
 let locked_deal_order = crate::protos::DealOrder {
@@ -102,25 +102,20 @@ let locked_deal_order = crate::protos::DealOrder {
     ..updated_deal_order
 };
 
-
 rust { tse.inc_tip(); }
 
-command = LockDealOrder {
-    deal_order_id: deal_order_id.into(),
-};
+command = lock_deal_order;
 
 require(
     Wallet for investor with amount = rust { tx_fee.clone() * 5 },
     Wallet for fundraiser with amount = rust { tx_fee.clone() * 4 + 1 },
-    Guid for add_ask_order,
-    Guid for add_bid_order,
     send transaction { register_address_investor } with signer = Signer!(investor),
     send transaction { register_address_fundraiser } with signer = Signer!(fundraiser),
     send transaction { add_ask_order } with signer = Signer!(investor), guid = add_ask_order_guid,
     send transaction { add_bid_order } with signer = Signer!(fundraiser), guid = add_bid_order_guid,
     send transaction { add_offer } with signer = Signer!(investor), guid = add_offer_guid,
     send transaction { add_deal_order } with signer = Signer!(fundraiser),
-    send transaction { register_transfer } with signer = Signer!(investor),
+    send transaction { register_transfer_invest } with signer = Signer!(investor),
     send transaction { complete_deal_order } with signer = Signer!(investor),
 )
 

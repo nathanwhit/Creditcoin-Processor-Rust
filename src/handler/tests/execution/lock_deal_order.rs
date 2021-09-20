@@ -88,13 +88,13 @@ fn lock_deal_order_success() {
             sighash: fundraiser.clone(),
         },
     );
-    let mut register_transfer = RegisterTransfer {
+    let mut register_transfer_invest = RegisterTransfer {
         gain: 0.into(),
         order_id: deal_order_id.clone().into(),
         blockchain_tx_id: String::from("blockchaintxid"),
     };
-    let (mut transfer_id, mut transfer) = tse.state_entry_from(
-        register_transfer.clone(),
+    let (mut invest_transfer_id, mut invest_transfer) = tse.state_entry_from(
+        register_transfer_invest.clone(),
         RegisterTransferArgs {
             kind: TransferKind::DealOrder(deal_order.clone()),
             src_address: investor_address.clone(),
@@ -103,7 +103,7 @@ fn lock_deal_order_success() {
     );
     let mut complete_deal_order = CompleteDealOrder {
         deal_order_id: deal_order_id.clone().into(),
-        transfer_id: transfer_id.clone().into(),
+        transfer_id: invest_transfer_id.clone().into(),
     };
     let (mut _id, mut updated_deal_order) = tse.state_entry_from(
         complete_deal_order.clone(),
@@ -113,21 +113,20 @@ fn lock_deal_order_success() {
     );
     let mut updated_transfer = crate::protos::Transfer {
         processed: true,
-        ..transfer.clone()
+        ..invest_transfer.clone()
+    };
+    let mut lock_deal_order = LockDealOrder {
+        deal_order_id: deal_order_id.clone().into(),
     };
     let mut locked_deal_order = crate::protos::DealOrder {
         lock: fundraiser.clone().to_string(),
         ..updated_deal_order.clone()
     };
     tse.inc_tip();
-    let mut command = LockDealOrder {
-        deal_order_id: deal_order_id.clone().into(),
-    };
+    let mut command = lock_deal_order.clone();
     let command_guid_ = Guid("some_guid".into());
     let investor_wallet_id_ = WalletId::from(&investor);
     let fundraiser_wallet_id_ = WalletId::from(&fundraiser);
-    let add_ask_order_guid_ = Guid("some_guid".into());
-    let add_bid_order_guid_ = Guid("some_guid".into());
     {
         let sig = crate::handler::types::SigHash(fundraiser.clone().to_string());
         ctx.expect_sighash().return_once(move |_| Ok(sig));

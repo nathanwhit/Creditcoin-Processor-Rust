@@ -30,30 +30,93 @@ fn register_transfer_success() {
         let mut tse = ToStateEntryCtx::new(3u64);
         let mut tx_fee = ccprocessor_rust::handler::constants::TX_FEE.clone();
         let mut request = TpProcessRequest {
-            tip: 9,
-            ..::core::default::Default::default()
+            tip: u64::from(tse.tip()),
+            ..Default::default()
         };
-        let mut investor_address_id = address_id_for("myaddress");
-        let mut fundraiser_address_id = address_id_for("otheraddress");
-        let mut bid_order_guid = Guid::random();
-        let mut ask_order_guid = Guid::random();
-        let mut offer_guid = Guid::random();
-        let mut ask_order_id = AddressId::with_prefix_key(ASK_ORDER, ask_order_guid.as_str());
-        let mut bid_order_id = AddressId::with_prefix_key(BID_ORDER, bid_order_guid.as_str());
-        let mut offer_id = AddressId::with_prefix_key(
-            OFFER,
-            &string!(ask_order_id.as_str(), bid_order_id.as_str()),
+        let mut add_ask_order_guid = Guid::random();
+        let mut add_bid_order_guid = Guid::random();
+        let mut add_offer_guid = Guid::random();
+        let mut add_deal_order_guid = Guid::random();
+        let mut register_address_investor = register_address_for("investoraddress");
+        let (mut investor_address_id, mut investor_address) =
+            tse.state_entry_from(register_address_investor.clone(), investor.clone());
+        let mut register_address_fundraiser = register_address_for("fundraiseraddress");
+        let (mut fundraiser_address_id, mut fundraiser_address) =
+            tse.state_entry_from(register_address_fundraiser.clone(), fundraiser.clone());
+        let mut add_ask_order = AddAskOrder {
+            address_id: investor_address_id.clone().into(),
+            amount_str: "1000".into(),
+            interest: "100".into(),
+            maturity: "10".into(),
+            fee_str: "1".into(),
+            expiration: 10000.into(),
+        };
+        let (mut ask_order_id, mut ask_order) = tse.state_entry_from(
+            add_ask_order.clone(),
+            AddAskOrderArgs {
+                guid: add_ask_order_guid.clone(),
+                address: investor_address.clone(),
+                sighash: investor.clone(),
+            },
         );
-        let mut deal_order_guid = Guid::random();
-        let mut deal_order_id = AddressId::with_prefix_key(DEAL_ORDER, offer_id.as_str());
-        let mut command = RegisterTransfer {
-            gain: 1.into(),
+        let mut add_bid_order = AddBidOrder {
+            address_id: fundraiser_address_id.clone().into(),
+            amount_str: "1000".into(),
+            interest: "100".into(),
+            maturity: "10".into(),
+            fee_str: "1".into(),
+            expiration: 10000.into(),
+        };
+        let (mut bid_order_id, mut bid_order) = tse.state_entry_from(
+            add_bid_order.clone(),
+            AddBidOrderArgs {
+                guid: add_bid_order_guid.clone(),
+                address: fundraiser_address.clone(),
+                sighash: fundraiser.clone(),
+            },
+        );
+        let mut add_offer = AddOffer {
+            ask_order_id: ask_order_id.clone().into(),
+            bid_order_id: bid_order_id.clone().into(),
+            expiration: 10000.into(),
+        };
+        let (mut offer_id, mut offer) = tse.state_entry_from(
+            add_offer.clone(),
+            AddOfferArgs {
+                src_address: investor_address.clone(),
+                sighash: investor.clone(),
+            },
+        );
+        let mut add_deal_order = AddDealOrder {
+            offer_id: offer_id.clone().into(),
+            expiration: 10000.into(),
+        };
+        let (mut deal_order_id, mut deal_order) = tse.state_entry_from(
+            add_deal_order.clone(),
+            AddDealOrderArgs {
+                bid_order: bid_order.clone().clone(),
+                ask_order: ask_order.clone().clone(),
+                offer: offer.clone().clone(),
+                sighash: fundraiser.clone(),
+            },
+        );
+        let mut register_transfer = RegisterTransfer {
+            gain: 0.into(),
             order_id: deal_order_id.clone().into(),
             blockchain_tx_id: String::from("blockchaintxid"),
         };
+        let (mut transfer_id, mut transfer) = tse.state_entry_from(
+            register_transfer.clone(),
+            RegisterTransferArgs {
+                kind: TransferKind::DealOrder(deal_order.clone()),
+                src_address: investor_address.clone(),
+                src_sighash: investor.clone(),
+            },
+        );
+        let mut command = register_transfer.clone();
         let command_guid_ = Guid::from(make_nonce());
         {
-            let amount = Integer::from(Credo::from(4) * tx_fee.clone() + 2);
+            let amount = Integer::from(Credo::from(4) * tx_fee.clone());
             let collect_coins = ccprocessor_rust::handler::CollectCoins {
                 amount: amount.into(),
                 eth_address: "dummy".into(),
@@ -81,11 +144,7 @@ fn register_transfer_success() {
         }
         let fundraiser_wallet_id_ = WalletId::from(&fundraiser);
         {
-            let tx = RegisterAddress {
-                blockchain: String::from("ethereum"),
-                address: String::from("myaddress"),
-                network: String::from("rinkeby"),
-            };
+            let tx = register_address_investor.clone();
             let response = send_command_with_signer(tx, ports, None, &investor_signer);
             assert_matches!(
                 complete_batch(&response.link, None),
@@ -93,11 +152,7 @@ fn register_transfer_success() {
             );
         }
         {
-            let tx = RegisterAddress {
-                blockchain: String::from("ethereum"),
-                address: String::from("otheraddress"),
-                network: String::from("rinkeby"),
-            };
+            let tx = register_address_fundraiser.clone();
             let response = send_command_with_signer(tx, ports, None, &fundraiser_signer);
             assert_matches!(
                 complete_batch(&response.link, None),
@@ -105,18 +160,11 @@ fn register_transfer_success() {
             );
         }
         {
-            let tx = AddBidOrder {
-                address_id: investor_address_id.clone().to_string(),
-                amount_str: String::from("1"),
-                interest: String::from("0"),
-                maturity: String::from("1"),
-                fee_str: String::from("2"),
-                expiration: BlockNum(100),
-            };
+            let tx = add_ask_order.clone();
             let response = send_command_with_signer(
                 tx,
                 ports,
-                Some(Nonce::from(bid_order_guid.clone())),
+                Some(Nonce::from(add_ask_order_guid.clone())),
                 &investor_signer,
             );
             assert_matches!(
@@ -125,18 +173,11 @@ fn register_transfer_success() {
             );
         }
         {
-            let tx = AddAskOrder {
-                address_id: fundraiser_address_id.clone().to_string(),
-                amount_str: String::from("1"),
-                interest: String::from("0"),
-                maturity: String::from("1"),
-                fee_str: String::from("2"),
-                expiration: BlockNum(100),
-            };
+            let tx = add_bid_order.clone();
             let response = send_command_with_signer(
                 tx,
                 ports,
-                Some(Nonce::from(ask_order_guid.clone())),
+                Some(Nonce::from(add_bid_order_guid.clone())),
                 &fundraiser_signer,
             );
             assert_matches!(
@@ -145,31 +186,11 @@ fn register_transfer_success() {
             );
         }
         {
-            let tx = AddOffer {
-                ask_order_id: ask_order_id.clone().into(),
-                bid_order_id: bid_order_id.clone().into(),
-                expiration: BlockNum(100),
-            };
+            let tx = add_offer.clone();
             let response = send_command_with_signer(
                 tx,
                 ports,
-                Some(Nonce::from(offer_guid.clone())),
-                &fundraiser_signer,
-            );
-            assert_matches!(
-                complete_batch(&response.link, None),
-                Some(BatchStatus::Committed)
-            );
-        }
-        {
-            let tx = AddDealOrder {
-                offer_id: offer_id.clone().into(),
-                expiration: 100.into(),
-            };
-            let response = send_command_with_signer(
-                tx,
-                ports,
-                Some(Nonce::from(deal_order_guid.clone())),
+                Some(Nonce::from(add_offer_guid.clone())),
                 &investor_signer,
             );
             assert_matches!(
@@ -177,45 +198,19 @@ fn register_transfer_success() {
                 Some(BatchStatus::Committed)
             );
         }
-        let mut deal_order = ccprocessor_rust::protos::DealOrder {
-            blockchain: String::from("ethereum"),
-            dst_address: investor_address_id.clone().into(),
-            src_address: fundraiser_address_id.clone().into(),
-            amount: String::from("1"),
-            sighash: investor.clone().to_string(),
-            ..::core::default::Default::default()
-        };
-        let mut investor_address = ccprocessor_rust::protos::Address {
-            blockchain: String::from("ethereum"),
-            value: String::from("myaddress"),
-            network: String::from("rinkeby"),
-            sighash: investor.clone().to_string(),
-        };
-        let mut fundraiser_address = ccprocessor_rust::protos::Address {
-            blockchain: String::from("ethereum"),
-            value: String::from("otheraddress"),
-            network: String::from("rinkeby"),
-            sighash: fundraiser.clone().to_string(),
-        };
-        let mut transfer_id = AddressId::with_prefix_key(
-            TRANSFER,
-            &string!(
-                &investor_address.blockchain,
-                &command.blockchain_tx_id,
-                &investor_address.network
-            ),
-        );
-        let mut transfer = ccprocessor_rust::protos::Transfer {
-            blockchain: investor_address.blockchain.clone(),
-            dst_address: fundraiser_address_id.clone().to_string(),
-            src_address: investor_address_id.clone().to_string(),
-            order: command.order_id.clone(),
-            amount: (command.gain.clone() + 1).to_string(),
-            tx: command.blockchain_tx_id.clone(),
-            sighash: investor.clone().to_string(),
-            block: 8.to_string(),
-            processed: false,
-        };
+        {
+            let tx = add_deal_order.clone();
+            let response = send_command_with_signer(
+                tx,
+                ports,
+                Some(Nonce::from(add_deal_order_guid.clone())),
+                &fundraiser_signer,
+            );
+            assert_matches!(
+                complete_batch(&response.link, None),
+                Some(BatchStatus::Committed)
+            );
+        }
         let mut guid = command_guid_.clone();
         execute_success(
             command,
@@ -234,7 +229,7 @@ fn register_transfer_success() {
                     investor_wallet_id_.clone().to_string(),
                     wallet_with(Some(0)).unwrap().into(),
                 ),
-                make_fee(&guid, &investor, Some(8)),
+                make_fee(&guid.clone(), &investor.clone(), Some(tse.tip() - 1)),
             ],
         )
         .unwrap();
