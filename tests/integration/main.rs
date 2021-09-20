@@ -19,6 +19,8 @@ mod complete_repayment_order;
 
 mod exempt;
 
+mod housekeeping;
+
 mod lock_deal_order;
 
 mod register_address;

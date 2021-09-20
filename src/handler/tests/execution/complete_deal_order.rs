@@ -119,8 +119,6 @@ fn complete_deal_order_success() {
     let command_guid_ = Guid("some_guid".into());
     let investor_wallet_id_ = WalletId::from(&investor);
     let fundraiser_wallet_id_ = WalletId::from(&fundraiser);
-    let add_ask_order_guid_ = Guid("some_guid".into());
-    let add_bid_order_guid_ = Guid("some_guid".into());
     {
         let sig = crate::handler::types::SigHash(investor.clone().to_string());
         ctx.expect_sighash().return_once(move |_| Ok(sig));

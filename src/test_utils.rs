@@ -359,8 +359,8 @@ macro_rules! assert_state_data_eq {
                 }
             }
         } else if ns.starts_with(WALLET) {
-            if let Ok(actual) = $root::protos::Transfer::try_parse(&data_decoded) {
-                if let Ok(expected) = $root::protos::Transfer::try_parse(&value) {
+            if let Ok(actual) = $root::protos::Wallet::try_parse(&data_decoded) {
+                if let Ok(expected) = $root::protos::Wallet::try_parse(&value) {
                     assert_eq!(actual, expected);
                 }
             }

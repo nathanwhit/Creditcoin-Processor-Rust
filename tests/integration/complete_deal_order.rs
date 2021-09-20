@@ -157,8 +157,6 @@ fn complete_deal_order_success() {
             );
         }
         let fundraiser_wallet_id_ = WalletId::from(&fundraiser);
-        let add_ask_order_guid_ = Guid::from(make_nonce());
-        let add_bid_order_guid_ = Guid::from(make_nonce());
         {
             let tx = register_address_investor.clone();
             let response = send_command_with_signer(tx, ports, None, &investor_signer);
