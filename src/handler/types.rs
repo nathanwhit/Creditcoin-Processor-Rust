@@ -1,4 +1,4 @@
-use anyhow::Context;
+use color_eyre::eyre::WrapErr;
 use derive_more::{Add, AddAssign, Display, Div, Mul, Sub, SubAssign};
 use log::error;
 use std::convert::TryFrom;
@@ -21,7 +21,7 @@ use crate::{bail_transaction, protos, string};
 
 use super::utils;
 
-pub type TxnResult<T, E = anyhow::Error> = std::result::Result<T, E>;
+pub type TxnResult<T, E = color_eyre::eyre::Error> = color_eyre::Result<T, E>;
 
 #[derive(Debug)]
 pub enum CCApplyError {
@@ -421,7 +421,7 @@ impl fmt::Display for BlockNum {
 }
 
 impl TryFrom<&str> for BlockNum {
-    type Error = anyhow::Error;
+    type Error = color_eyre::Report;
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         if value.contains('-') {
@@ -436,7 +436,7 @@ impl TryFrom<&str> for BlockNum {
                 "Failed parsing value: {:?} into BlockNum with error {}",
                 value, e
             );
-            anyhow::Error::from(CCApplyError::InvalidTransaction(
+            Self::Error::from(CCApplyError::InvalidTransaction(
                 INVALID_NUMBER_FORMAT_ERR.into(),
             ))
         })?))
@@ -537,7 +537,7 @@ fn try_from_str_for_blocknum_works_as_expected() {
 }
 
 impl TryFrom<&String> for BlockNum {
-    type Error = anyhow::Error;
+    type Error = color_eyre::Report;
 
     fn try_from(value: &String) -> Result<Self, Self::Error> {
         <Self as TryFrom<&str>>::try_from(&*value)

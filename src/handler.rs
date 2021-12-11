@@ -14,7 +14,7 @@ use crate::{
     protos, string,
 };
 
-use anyhow::Context as _;
+use color_eyre::eyre::WrapErr;
 #[cfg(not(all(test, feature = "mock")))]
 use context::HandlerContext;
 
@@ -189,7 +189,7 @@ pub struct Housekeeping {
 }
 
 impl TryFrom<Value> for CCCommand {
-    type Error = anyhow::Error;
+    type Error = color_eyre::Report;
 
     fn try_from(value: Value) -> TxnResult<Self, Self::Error> {
         if let Value::Map(map) = value {
@@ -1442,7 +1442,7 @@ impl CCTransaction for RegisterDealOrder {
                 );
             }
             Err(err) => {
-                return Err(anyhow::Error::from(InvalidTransaction(format!(
+                return Err(color_eyre::Report::from(InvalidTransaction(format!(
                     "Error occurred when verifying the fundraiser signature : {}",
                     err.to_string()
                 ))))

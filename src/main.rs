@@ -14,7 +14,7 @@ pub mod protos {
     include!(concat!(env!("OUT_DIR"), "/cc.protos.rs"));
 }
 
-use anyhow::Result;
+use color_eyre::Result;
 use fern::FormatCallback;
 use fern::{colors::Color, Dispatch};
 use log::LevelFilter;
@@ -61,8 +61,9 @@ fn setup_logs(verbose_count: u64) -> Result<()> {
 
     Dispatch::new()
         .level(level)
-        .level_for("sawtooth_sdk::consensus::zmq_driver", LevelFilter::Error)
-        .level_for("sawtooth_sdk::messaging::zmq_stream", LevelFilter::Error)
+        .level_for("sawtooth_sdk_creditcoin::consensus::zmq_driver", LevelFilter::Error)
+        .level_for("sawtooth_sdk_creditcoin::messaging::zmq_stream", LevelFilter::Error)
+        .level_for("sawtooth_sdk_creditcoin::processor", LevelFilter::Error)
         .format(fmt_log)
         .chain(stdout())
         .apply()?;
@@ -72,6 +73,8 @@ fn setup_logs(verbose_count: u64) -> Result<()> {
 
 #[cfg(not(all(test, feature = "mock")))]
 fn main() -> Result<()> {
+    color_eyre::install()?;
+
     let matches = clap_app!(consensus_engine =>
       (version: crate_version!())
       (author: crate_authors!())

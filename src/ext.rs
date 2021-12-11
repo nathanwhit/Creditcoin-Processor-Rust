@@ -2,7 +2,7 @@ use crate::handler::{
     constants::{INVALID_NUMBER_FORMAT_ERR, NEGATIVE_NUMBER_ERR},
     types::{CCApplyError, TxnResult},
 };
-use anyhow::Context;
+use color_eyre::eyre::WrapErr;
 use rug::Integer;
 use sawtooth_sdk::processor::handler::ApplyError;
 
@@ -57,7 +57,7 @@ pub trait ErrorExt: Sized {
     fn log_err(self) -> Self;
 }
 
-impl ErrorExt for anyhow::Error {
+impl ErrorExt for color_eyre::Report {
     type Return = ApplyError;
 
     fn to_apply_error(self) -> Self::Return {
@@ -69,7 +69,7 @@ impl ErrorExt for anyhow::Error {
     }
 
     fn log_err(self) -> Self {
-        log::error!("An error occured: {:#}", &self);
+        log::error!("An error occured1: {}", &self);
         self
     }
 }
@@ -82,7 +82,7 @@ impl ErrorExt for ApplyError {
     }
 
     fn log_err(self) -> Self {
-        log::error!("An error occurred: {:#}", &self);
+        log::error!("An error occurred2: {}", &self);
         self
     }
 }
@@ -102,7 +102,7 @@ impl<T> ErrorExt for TxnResult<T> {
 
     fn log_err(self) -> Self {
         if let Err(e) = &self {
-            log::error!("An error occurred: {:#}", &e);
+            log::error!("An error occurred3: {:?}", e);
         }
         self
     }

@@ -38,8 +38,8 @@ macro_rules! bail_transaction {
     };
 
     ($s: expr, context = $c: expr) => {
-        use anyhow::Context;
-        return bail_transaction!(makeit $s).map_err(anyhow::Error::from).context($c)
+        use color_eyre::eyre::{WrapErr};
+        return bail_transaction!(makeit $s).map_err(color_eyre::Report::from).context($c)
     };
     ($s: literal, context = $c: literal, $($t2: tt),*) => {
         bail_transaction!($s, context = format!($c, $($t2),*))
@@ -181,7 +181,7 @@ pub fn compress(uncompressed: &str) -> TxnResult<String> {
     }
 }
 
-pub fn params_from_bytes(bytes: &[u8]) -> anyhow::Result<Value> {
+pub fn params_from_bytes(bytes: &[u8]) -> color_eyre::Result<Value> {
     let res = serde_cbor::from_slice(bytes)?;
     Ok(res)
 }
