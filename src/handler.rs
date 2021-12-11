@@ -2146,6 +2146,18 @@ fn verify_gateway_signer(my_sighash: &str, ctx: &mut HandlerContext) -> TxnResul
     );
 }
 
+macro_rules! subtract_or_return {
+    ($e: expr) => {
+        match $e {
+            Ok(d) => d,
+            Err(e) => {
+                log::warn!("{:?}", e);
+                return Ok(());
+            }
+        }
+    };
+}
+
 impl CCTransaction for Housekeeping {
     fn execute(
         self,
