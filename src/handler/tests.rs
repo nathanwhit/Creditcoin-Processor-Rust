@@ -3384,6 +3384,18 @@ fn housekeeping_not_enough_confirmations() {
     command.execute(&request, &tx_ctx, &mut ctx).unwrap();
 }
 
+fn expect_get_last_processed_block(
+    tx_ctx: &mut MockTransactionContext,
+    last_processed: impl Into<Integer>,
+) {
+    expect!(tx_ctx,
+        get_state_entry(k if k == PROCESSED_BLOCK_IDX.as_str())
+        -> Ok(Some(
+            last_processed.into().to_string().into_bytes()
+        ))
+    );
+}
+
 #[test]
 fn housekeeping_within_block_reward_count() {
     use std::convert::TryInto;
@@ -3410,17 +3422,34 @@ fn housekeeping_within_block_reward_count() {
     let mut tx_ctx = MockTransactionContext::default();
 
     // Housekeeping should check the last processed block, then bail out
-    expect!(tx_ctx,
-        get_state_entry(k if k == PROCESSED_BLOCK_IDX.as_str())
-        -> Ok(Some(
-            Integer::from(last_processed).to_string().into_bytes()
-        ))
-    );
+    expect_get_last_processed_block(&mut tx_ctx, last_processed);
 
     let mut ctx = MockHandlerContext::default();
 
     // execute housekeeping
     command.execute(&request, &tx_ctx, &mut ctx).unwrap();
+}
+
+#[test]
+fn housekeeping_removes_expired_entries() {
+    init_logs();
+
+    let command = Housekeeeping {
+        block_idx: BlockNum(200),
+    };
+
+    let last_processed = BlockNum(130);
+
+    let request = TpProcessRequest {
+        tip: 250,
+        block_signature: "headblocksig".into(),
+        ..Default::default()
+    };
+    let mut tx_ctx = MockTransactionContext::default();
+
+    expect_get_last_processed_block(&mut tx_ctx, last_processed);
+
+    
 }
 
 const NONE: Option<protos::Wallet> = None;
