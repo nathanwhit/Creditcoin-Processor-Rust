@@ -22,7 +22,7 @@ use log::Record;
 use std::fmt::Arguments;
 use std::io::stdout;
 
-use clap::{clap_app, crate_authors, crate_description, crate_version};
+use clap::Parser;
 use fern::colors::ColoredLevelConfig;
 use log::info;
 
@@ -72,31 +72,40 @@ fn setup_logs(verbose_count: u64) -> Result<()> {
     Ok(())
 }
 
+#[derive(Parser)]
+#[clap(author, version, about)]
+struct Args {
+    #[clap(short('E'), long, default_value_t = String::from(DEFAULT_ENDPOINT), help = "connection endpoint for validator")]
+    endpoint: String,
+
+    #[clap(short('G'), long, default_value_t = String::from(DEFAULT_GATEWAY), help = "connection endpoint for gateway")]
+    gateway: String,
+
+    #[clap(long, help = "use compatibility for Creditcoin 1.7")]
+    old: bool,
+
+    #[clap(
+        short('v'),
+        long,
+        parse(from_occurrences),
+        help = "increase output verbosity"
+    )]
+    verbose: u64,
+}
+
 #[cfg(not(all(test, feature = "mock")))]
 fn main() -> Result<()> {
-    let matches = clap_app!(consensus_engine =>
-      (version: crate_version!())
-      (author: crate_authors!())
-      (about: crate_description!())
-      (@arg endpoint: -E --endpoint +takes_value "connection endpoint for validator")
-      (@arg gateway: -G --gateway +takes_value "connection endpoint for gateway")
-      (@arg old: --old "use compatibility")
-      (@arg verbose: -v --verbose +multiple "increase output verbosity")
-    )
-    .get_matches();
+    let args = Args::parse();
 
-    let endpoint: &str = matches.value_of("endpoint").unwrap_or(DEFAULT_ENDPOINT);
-    let gateway: &str = matches.value_of("gateway").unwrap_or(DEFAULT_GATEWAY);
-
-    setup_logs(matches.occurrences_of("verbose"))?;
+    setup_logs(args.verbose)?;
 
     info!("ccprocessor-rust ({})", env!("CARGO_PKG_VERSION"));
 
-    info!("ccprocessor-rust connecting to {} ...", endpoint);
-    let mut processor = TransactionProcessor::new(endpoint);
+    info!("ccprocessor-rust connecting to {} ...", args.endpoint);
+    let mut processor = TransactionProcessor::new(&args.endpoint);
 
-    info!("ccprocessor-rust connecting to gateway {} ...", gateway);
-    let handler = handler::CCTransactionHandler::new(gateway);
+    info!("ccprocessor-rust connecting to gateway {} ...", args.gateway);
+    let handler = handler::CCTransactionHandler::new(args.gateway);
 
     processor.add_handler(&handler);
     processor.start();
